@@ -4,3 +4,10 @@ Release/
 *.VC.opendb
 *.suo
 *.sln.ecd
+CMakeFiles/
+CMakeCache.txt
+Makefile
+.DS_Store
+.vscode/
+cmake_install.cmake
+libAsyncRgbLedAnalyzer.*
