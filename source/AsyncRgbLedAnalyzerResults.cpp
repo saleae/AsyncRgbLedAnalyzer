@@ -21,9 +21,13 @@ void AsyncRgbLedAnalyzerResults::GenerateBubbleText( U64 frame_index, Channel& c
 	ClearResultStrings();
 	Frame frame = GetFrame( frame_index );
 
-	char number_str[128];
-	AnalyzerHelpers::GetNumberString( frame.mData1, display_base, 8, number_str, 128 );
-	AddResultString( number_str );
+	U32 ledIndex = frame.mData2;
+	U8 red = frame.mData1 >> 16;
+	U8 green = (frame.mData1 >> 8) & 0xff;
+	U8 blue = frame.mData1 & 0xff;
+	char colorBuffer[128];
+	::snprintf(colorBuffer, sizeof(colorBuffer), "LED %d #%02x%02x%02x", ledIndex, red, green, blue);
+	AddResultString( colorBuffer );
 }
 
 void AsyncRgbLedAnalyzerResults::GenerateExportFile( const char* file, DisplayBase display_base, U32 export_type_user_id )

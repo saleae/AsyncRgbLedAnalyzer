@@ -34,8 +34,11 @@ protected: //vars
 
 	// analysis vars:
 	U32 mSampleRateHz = 0;
-	U32 mStartOfStopBitOffset = 0;
-	U32 mEndOfStopBitOffset = 0;
+    double mNSecPerSample = 0;
+	U8 mRGBBitCount = 24;
+private:
+	U32 ReadRGBTriple(bool& sawReset);
+	U8 ReadBit(); 
 };
 
 extern "C" {

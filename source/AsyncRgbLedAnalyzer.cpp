@@ -4,6 +4,8 @@
 
 #include <AnalyzerChannelData.h>
 
+#include <iostream>
+
 AsyncRgbLedAnalyzer::AsyncRgbLedAnalyzer()
 :	Analyzer2(),  
 	mSettings( new AsyncRgbLedAnalyzerSettings )
@@ -26,52 +28,114 @@ void AsyncRgbLedAnalyzer::SetupResults()
 void AsyncRgbLedAnalyzer::WorkerThread()
 {
 	mSampleRateHz = GetSampleRate();
-
+	mNSecPerSample = 1000000000 / GetSampleRate();
 	mChannelData = GetAnalyzerChannelData( mSettings->mInputChannel );
+	mRGBBitCount = mSettings->BitSize() * 3;
 
-	if( mChannelData->GetBitState() == BIT_LOW )
+	// find first long low pulse to synchronise with the stream?
+
+	// advance to the first RESET pulse
+	if( mChannelData->GetBitState() == BIT_HIGH )
 		mChannelData->AdvanceToNextEdge();
-
-	U32 bitRate = 9600;
-	U32 samples_per_bit = mSampleRateHz / bitRate;
-	U32 samples_to_first_center_of_first_data_bit = U32( 1.5 * double( mSampleRateHz ) / double(bitRate) );
-
+	
+	U64 resetBeginSample = mChannelData->GetSampleNumber();
+	
 	for( ; ; )
 	{
-		U8 data = 0;
-		U8 mask = 1 << 7;
-		
-		mChannelData->AdvanceToNextEdge(); //falling edge -- beginning of the start bit
+		U32 frameInPacketIndex = 0;
 
-		U64 starting_sample = mChannelData->GetSampleNumber();
+		mResults->CommitPacketAndStartNewPacket();
+		mChannelData->AdvanceToNextEdge(); // rising edge - end of RESET
+		U64 firstDataSample = mChannelData->GetSampleNumber();
+		U64 resetSampleCount = firstDataSample - resetBeginSample;
+        double resetNSec = resetSampleCount * mNSecPerSample;
 
-		mChannelData->Advance( samples_to_first_center_of_first_data_bit );
-
-		for( U32 i=0; i<8; i++ )
-		{
-			//let's put a dot exactly where we sample this bit:
-			mResults->AddMarker( mChannelData->GetSampleNumber(), AnalyzerResults::Dot, mSettings->mInputChannel );
-
-			if( mChannelData->GetBitState() == BIT_HIGH )
-				data |= mask;
-
-			mChannelData->Advance( samples_per_bit );
-
-			mask = mask >> 1;
+        if (resetNSec < mSettings->ResetTimeNSec()) {
+			// warn about this somehow
+            std::cerr << "too-short reset duration observed:" << resetNSec << " vs "
+                      << mSettings->ResetTimeNSec() << std::endl;
 		}
 
+		// data word reading loop
+		for ( ; ; ) {
+			Frame frame;
+			frame.mFlags = 0;
+			frame.mStartingSampleInclusive  = mChannelData->GetSampleNumber();
 
-		//we have a byte to save. 
-		Frame frame;
-		frame.mData1 = data;
-		frame.mFlags = 0;
-		frame.mStartingSampleInclusive = starting_sample;
-		frame.mEndingSampleInclusive = mChannelData->GetSampleNumber();
+			bool sawReset = false;
+			frame.mData1 = ReadRGBTriple(sawReset);
+            frame.mData2 = frameInPacketIndex++;
+			if (sawReset) {
+				break;
+			}
 
-		mResults->AddFrame( frame );
+			frame.mEndingSampleInclusive = mChannelData->GetSampleNumber();
+			mResults->AddFrame( frame );
+		}
+
 		mResults->CommitResults();
-		ReportProgress( frame.mEndingSampleInclusive );
+		resetBeginSample = mChannelData->GetSampleNumber();
+		ReportProgress( resetBeginSample );
 	}
+}
+
+// TODO U32 won't work for 12-bit mode, we should define a struct
+U32 AsyncRgbLedAnalyzer::ReadRGBTriple(bool& sawReset)
+{
+	U32 rgb = 0;
+	for (int i=0; i<mRGBBitCount; ++i) {
+		U8 bit = ReadBit();
+		if (bit == 0xff) {
+			sawReset = true;
+			return 0;
+		}
+
+		rgb = (rgb << 1) | bit;
+	}
+
+	// TODO re-order for GRB controller chips
+    AsyncRgbLedAnalyzerSettings::ColorLayout layout = mSettings->GetColorLayout();
+    switch (layout) {
+    case AsyncRgbLedAnalyzerSettings::LAYOUT_GRB:
+  //      std::swap(rgb.red, rgb.green);
+        break;
+
+    default:
+        // no-op
+        break;
+    }
+
+	return rgb;
+}
+
+U8 AsyncRgbLedAnalyzer::ReadBit()
+{
+	const U64 bitBeginSample = mChannelData->GetSampleNumber();
+	mChannelData->AdvanceToNextEdge(); // falling edge
+	const U64 bitTransitionSample = mChannelData->GetSampleNumber();
+
+    // don't advance yet, this might be a reset
+	const U64 bitEndSample = mChannelData->GetSampleOfNextEdge();
+
+    const double highNSec = (bitTransitionSample - bitBeginSample) * mNSecPerSample;
+    const double lowNSec = (bitEndSample - bitTransitionSample) * mNSecPerSample;
+
+	// if we see a low time that's in the same magnitude as a reset pulse,
+	// let's treat it as such (reset pulses are several orders of magnitude larger
+	// than a data bit's low pulse)
+    if (lowNSec > (mSettings->ResetTimeNSec() * 0.5)) {
+		// don't advance here, the outer analysis loop will do that
+		return 0xff; // RESET marker value
+	}
+	
+    // if it wasn't a reset, we can safely advance
+	mChannelData->AdvanceToAbsPosition(bitEndSample);
+
+	// very tolerant classification; if the high time is longer than the low time,
+	// it's a 1, and conversely if the low time is longer than high, it's a 0.
+    // TODO replace this since while it's tolerant, it doesn't work for some
+    // controllers
+    return (highNSec > lowNSec) ? 1 : 0;
 }
 
 bool AsyncRgbLedAnalyzer::NeedsRerun()
