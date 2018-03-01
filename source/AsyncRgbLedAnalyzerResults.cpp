@@ -22,11 +22,10 @@ void AsyncRgbLedAnalyzerResults::GenerateBubbleText( U64 frame_index, Channel& c
 	Frame frame = GetFrame( frame_index );
 
 	U32 ledIndex = frame.mData2;
-	U8 red = frame.mData1 >> 16;
-	U8 green = (frame.mData1 >> 8) & 0xff;
-	U8 blue = frame.mData1 & 0xff;
+    RGBValue rgb = RGBValue::CreateFromU64(frame.mData1);
 	char colorBuffer[128];
-	::snprintf(colorBuffer, sizeof(colorBuffer), "LED %d #%02x%02x%02x", ledIndex, red, green, blue);
+    // TODO this is wrong for 12-bit channel data
+    ::snprintf(colorBuffer, sizeof(colorBuffer), "LED %d #%02x%02x%02x", ledIndex, rgb.red, rgb.green, rgb.blue);
 	AddResultString( colorBuffer );
 }
 

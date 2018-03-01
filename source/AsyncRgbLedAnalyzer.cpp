@@ -30,7 +30,6 @@ void AsyncRgbLedAnalyzer::WorkerThread()
 	mSampleRateHz = GetSampleRate();
 	mNSecPerSample = 1000000000 / GetSampleRate();
 	mChannelData = GetAnalyzerChannelData( mSettings->mInputChannel );
-	mRGBBitCount = mSettings->BitSize() * 3;
 
 	// find first long low pulse to synchronise with the stream?
 
@@ -63,7 +62,8 @@ void AsyncRgbLedAnalyzer::WorkerThread()
 			frame.mStartingSampleInclusive  = mChannelData->GetSampleNumber();
 
 			bool sawReset = false;
-			frame.mData1 = ReadRGBTriple(sawReset);
+            RGBValue rgb = ReadRGBTriple(sawReset);
+            frame.mData1 = rgb.ConvertToU64();
             frame.mData2 = frameInPacketIndex++;
 			if (sawReset) {
 				break;
@@ -79,33 +79,26 @@ void AsyncRgbLedAnalyzer::WorkerThread()
 	}
 }
 
-// TODO U32 won't work for 12-bit mode, we should define a struct
-U32 AsyncRgbLedAnalyzer::ReadRGBTriple(bool& sawReset)
+RGBValue AsyncRgbLedAnalyzer::ReadRGBTriple(bool& sawReset)
 {
-	U32 rgb = 0;
-	for (int i=0; i<mRGBBitCount; ++i) {
-		U8 bit = ReadBit();
-		if (bit == 0xff) {
-			sawReset = true;
-			return 0;
-		}
+    const U8 bitSize =  mSettings->BitSize();
+    U16 channels[3] = {0,0,0};
 
-		rgb = (rgb << 1) | bit;
-	}
+    for (int channel=0; channel < 3; ++channel) {
+        U16 value = 0;
+        for (int i=0; i<bitSize; ++i) {
+            U8 bit = ReadBit();
+            if (bit == 0xff) {
+                sawReset = true;
+                return {};
+            }
 
-	// TODO re-order for GRB controller chips
-    AsyncRgbLedAnalyzerSettings::ColorLayout layout = mSettings->GetColorLayout();
-    switch (layout) {
-    case AsyncRgbLedAnalyzerSettings::LAYOUT_GRB:
-  //      std::swap(rgb.red, rgb.green);
-        break;
-
-    default:
-        // no-op
-        break;
+            value = (value << 1) | bit;
+        }
+        channels[channel] = value;
     }
 
-	return rgb;
+    return RGBValue::CreateFromControllerOrder(mSettings->GetColorLayout(), channels);
 }
 
 U8 AsyncRgbLedAnalyzer::ReadBit()

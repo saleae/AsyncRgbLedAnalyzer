@@ -10,6 +10,9 @@ enum ColorLayout {
 
 struct RGBValue
 {
+    RGBValue() = default;
+    ~RGBValue() = default;
+
     RGBValue(U16 r, U16 g, U16 b) :
         red(r), green(g), blue(b) {;}
 
@@ -21,6 +24,11 @@ struct RGBValue
     void ConvertToControllerOrder(ColorLayout layout, U16* values) const;
 
     static RGBValue CreateFromControllerOrder(ColorLayout layout, U16* values);
+
+    static RGBValue CreateFromU64(U64 raw);
+
+    U64 ConvertToU64() const;
+
 };
 
 

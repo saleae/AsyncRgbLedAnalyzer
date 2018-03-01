@@ -4,6 +4,7 @@
 #include <Analyzer.h>
 
 #include "AsyncRgbLedSimulationDataGenerator.h"
+#include "AsyncRgbLedHelpers.h"
 
 // forward decls
 class AsyncRgbLedAnalyzerSettings;
@@ -35,10 +36,11 @@ protected: //vars
 	// analysis vars:
 	U32 mSampleRateHz = 0;
     double mNSecPerSample = 0;
-	U8 mRGBBitCount = 24;
+
 private:
-	U32 ReadRGBTriple(bool& sawReset);
-	U8 ReadBit(); 
+    RGBValue ReadRGBTriple(bool& sawReset);
+
+    U8 ReadBit();
 };
 
 extern "C" {
