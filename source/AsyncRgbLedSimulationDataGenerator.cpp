@@ -42,8 +42,7 @@ U32 AsyncRgbLedSimulationDataGenerator::GenerateSimulationData( U64 largest_samp
 
 	while( mLEDSimulationData.GetCurrentSampleNumber() < adjusted_largest_sample_requested )
 	{
-		WriteReset();
-        mLEDSimulationData.TransitionIfNeeded( BIT_HIGH );
+        WriteReset();
 
         // six RGB-triple cascade between resets, i.e six discrete LEDs
         // or two of the 3-LED combined drivers. We should perhaps make
@@ -72,8 +71,11 @@ void AsyncRgbLedSimulationDataGenerator::WriteRGBTriple( U32 red, U32 green, U32
 
 void AsyncRgbLedSimulationDataGenerator::WriteReset()
 {
-	mLEDSimulationData.TransitionIfNeeded(BIT_LOW); // go low
-    const double resetSec = mClockGenerator.AdvanceByTimeS(mSettings->ResetTimeNSec() * NSEC_TO_SEC);
+    // interstitial after last data bit, before the reset goes low
+    mLEDSimulationData.Advance( mClockGenerator.AdvanceByTimeS(1e-5) );
+    mLEDSimulationData.Transition(); // go low
+    // scale by 120% since reset time is the minimum I believe
+    const double resetSec = mClockGenerator.AdvanceByTimeS(mSettings->ResetTimeNSec() * 1.2 * NSEC_TO_SEC);
     mLEDSimulationData.Advance( resetSec );
 	mLEDSimulationData.Transition(); // go high to end the reset
 }
