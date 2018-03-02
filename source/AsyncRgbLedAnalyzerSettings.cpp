@@ -124,13 +124,13 @@ U32 AsyncRgbLedAnalyzerSettings::DataTimeNSecHigh(BitState value) const
 {
     const auto& d = mControllers.at(mLEDController);
     return mIsHighSpeedMode ? d.mDataTimingHighSpeedNsec[value][0]
-                            : d.mDataTimingNSec[value][1];
+                            : d.mDataTimingNSec[value][0];
 }
 
 U32 AsyncRgbLedAnalyzerSettings::DataTimeNSecLow(BitState value) const
 {
     const auto& d = mControllers.at(mLEDController);
-    return mIsHighSpeedMode ? d.mDataTimingHighSpeedNsec[value][0]
+    return mIsHighSpeedMode ? d.mDataTimingHighSpeedNsec[value][1]
                             : d.mDataTimingNSec[value][1];
 }
 
