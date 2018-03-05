@@ -3,6 +3,7 @@
 
 #include <SimulationChannelDescriptor.h>
 #include <AnalyzerHelpers.h>
+#include "AsyncRgbLedHelpers.h"
 #include <string>
 
 class AsyncRgbLedAnalyzerSettings;
@@ -22,9 +23,9 @@ protected:
 
 protected:
 	void CreateRGBWord();
-	U32 RandomRGBValue() const;
+	RGBValue RandomRGBValue() const;
 
-    void WriteRGBTriple( U32 red, U32 green, U32 blue );
+    void WriteRGBTriple( const RGBValue& rgb );
 	void WriteUIntData( U32 data, U8 bit_count );
 	void WriteBit(bool b);
 
@@ -32,5 +33,9 @@ protected:
 	
     ClockGenerator mClockGenerator;
 	SimulationChannelDescriptor mLEDSimulationData;
+
+	// largest value for a color channel in the selected controller.
+	// this is 2^bitSize - 1
+	U32 mMaximumChannelValue = 255;
 };
 #endif //ASYNCRGBLED_SIMULATION_DATA_GENERATOR

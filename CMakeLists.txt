@@ -7,6 +7,8 @@ project(AsyncRgbLedAnalyzer)
 
 set(SOURCES source/AsyncRgbLedAnalyzer.cpp
             source/AsyncRgbLedAnalyzer.h
+            source/AsyncRgbLedHelpers.cpp
+            source/AsyncRgbLedHelpers.h
             source/AsyncRgbLedAnalyzerSettings.cpp
             source/AsyncRgbLedAnalyzerSettings.h
             source/AsyncRgbLedAnalyzerResults.cpp
