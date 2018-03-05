@@ -41,6 +41,7 @@ private:
     RGBValue ReadRGBTriple(bool& sawReset);
 
     U8 ReadBit();
+    void SynchronizeToReset();
 };
 
 extern "C" {

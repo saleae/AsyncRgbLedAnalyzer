@@ -31,12 +31,8 @@ void AsyncRgbLedAnalyzer::WorkerThread()
 	mNSecPerSample = 1000000000 / GetSampleRate();
 	mChannelData = GetAnalyzerChannelData( mSettings->mInputChannel );
 
-	// find first long low pulse to synchronise with the stream?
+    SynchronizeToReset();
 
-	// advance to the first RESET pulse
-	if( mChannelData->GetBitState() == BIT_HIGH )
-		mChannelData->AdvanceToNextEdge();
-	
 	U64 resetBeginSample = mChannelData->GetSampleNumber();
 	
 	for( ; ; )
@@ -77,6 +73,32 @@ void AsyncRgbLedAnalyzer::WorkerThread()
 		resetBeginSample = mChannelData->GetSampleNumber();
 		ReportProgress( resetBeginSample );
 	}
+}
+
+void AsyncRgbLedAnalyzer::SynchronizeToReset()
+{
+    if (mChannelData->GetBitState() == BIT_HIGH) {
+        mChannelData->AdvanceToNextEdge();
+    }
+
+    for ( ; ; ) {
+        const U64 lowTransition = mChannelData->GetSampleNumber();
+        const U64 highTransition = mChannelData->GetSampleOfNextEdge();
+        double lowTimeNSec = (highTransition - lowTransition) * mNSecPerSample;
+        if (lowTimeNSec > mSettings->ResetTimeNSec()) {
+            // it's a reset, we are done
+            // advance to the start of the reset, to match the code in the main
+            // worker loop which expects this (it calls AdvanceToNextEdge to
+            // find the end of the reset)
+            mChannelData->AdvanceToAbsPosition(lowTransition);
+            return;
+        }
+
+        // advance past the rising edgge, to the next falling edge,
+        // which is our next candidate for the beginning of a RESET
+        mChannelData->AdvanceToAbsPosition(highTransition);
+        mChannelData->AdvanceToNextEdge();
+    }
 }
 
 RGBValue AsyncRgbLedAnalyzer::ReadRGBTriple(bool& sawReset)
