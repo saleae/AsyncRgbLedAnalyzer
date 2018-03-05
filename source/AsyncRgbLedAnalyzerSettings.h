@@ -6,6 +6,8 @@
 #include <AnalyzerSettings.h>
 #include <AnalyzerTypes.h>
 
+#include "AsyncRgbLedHelpers.h"
+
 class AsyncRgbLedAnalyzerSettings : public AnalyzerSettings
 {
 public:
@@ -56,11 +58,6 @@ public:
 
     U32 ResetTimeNSec() const;
 
-    enum ColorLayout {
-        LAYOUT_RGB = 0,
-        LAYOUT_GRB
-    };
-
     ColorLayout GetColorLayout() const;
 
 protected:
@@ -84,7 +81,7 @@ protected:
         bool mHasHighSpeed; // = trye
         U32 mDataTimingHighSpeedNsec[2][2];
 
-        AsyncRgbLedAnalyzerSettings::ColorLayout mLayout; // = LAYOUT_RGB
+        ColorLayout mLayout; // = LAYOUT_RGB
     };
 
     std::vector<LedControllerData> mControllers;

@@ -27,6 +27,8 @@ void AsyncRgbLedSimulationDataGenerator::Initialize( U32 simulation_sample_rate,
 	mSimulationSampleRateHz = simulation_sample_rate;
 	mSettings = settings;
 
+	mMaximumChannelValue = (1 << mSettings->BitSize()) - 1;
+
     // TODO pass in the analyzer and call GetMinimumSampleRate?
     mClockGenerator.Init( 12 * 1000000, mSimulationSampleRateHz );
 
@@ -58,15 +60,18 @@ U32 AsyncRgbLedSimulationDataGenerator::GenerateSimulationData( U64 largest_samp
 
 void AsyncRgbLedSimulationDataGenerator::CreateRGBWord()
 {
-	const U32 rgb = RandomRGBValue();
-	WriteRGBTriple( rgb >> 16 & 0xff, rgb >> 8 & 0xff, rgb & 0xff );
+	const RGBValue rgb = RandomRGBValue();
+	WriteRGBTriple( rgb );
 }
 
-void AsyncRgbLedSimulationDataGenerator::WriteRGBTriple( U32 red, U32 green, U32 blue )
+void AsyncRgbLedSimulationDataGenerator::WriteRGBTriple( const RGBValue& rgb )
 {
-    WriteUIntData( red, mSettings->BitSize() );
-    WriteUIntData( green, mSettings->BitSize() );
-    WriteUIntData( blue, mSettings->BitSize() );
+	U16 values[3];
+	rgb.ConvertToControllerOrder(mSettings->GetColorLayout(), values);
+
+	for (int i=0; i<3; ++i) {
+    	WriteUIntData( values[i], mSettings->BitSize() );
+	}
 }
 
 void AsyncRgbLedSimulationDataGenerator::WriteReset()
@@ -100,11 +105,11 @@ void AsyncRgbLedSimulationDataGenerator::WriteBit(bool b)
 	mLEDSimulationData.Transition(); // go high to end this bit
 }
 
-U32 AsyncRgbLedSimulationDataGenerator::RandomRGBValue() const
+RGBValue AsyncRgbLedSimulationDataGenerator::RandomRGBValue() const
 {
-    // TODO handle 12-bit data generation
-	const U8 red = rand() % 0xff;
-	const U8 green = rand() % 0xff;
-	const U8 blue = rand() % 0xff;
-	return (red << 16) | (green << 8) | blue;
+
+	const U16 red = rand() % mMaximumChannelValue;
+	const U16 green = rand() % mMaximumChannelValue;
+	const U16 blue = rand() % mMaximumChannelValue;
+	return RGBValue{red, green, blue};
 }
