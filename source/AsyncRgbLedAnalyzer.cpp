@@ -28,50 +28,51 @@ void AsyncRgbLedAnalyzer::SetupResults()
 void AsyncRgbLedAnalyzer::WorkerThread()
 {
 	mSampleRateHz = GetSampleRate();
-	mNSecPerSample = 1000000000 / GetSampleRate();
 	mChannelData = GetAnalyzerChannelData( mSettings->mInputChannel );
 
-    SynchronizeToReset();
+    // cache this value here to avoid recomputing this every bit-read
+    if (mSettings->IsHighSpeedSupported()) {
+        mMinimumLowDurationSec = std::min(mSettings->DataTiming(BIT_LOW, true).mNegativeTiming.mMinimumSec,
+                                          mSettings->DataTiming(BIT_HIGH, true).mNegativeTiming.mMinimumSec);
+    } else {
+        mMinimumLowDurationSec = std::min(mSettings->DataTiming(BIT_LOW).mNegativeTiming.mMinimumSec,
+                                          mSettings->DataTiming(BIT_HIGH).mNegativeTiming.mMinimumSec);
+    }
 
-	U64 resetBeginSample = mChannelData->GetSampleNumber();
-	
+    bool isResyncNeeded = true;
 	for( ; ; )
 	{
+        if (isResyncNeeded) {
+            SynchronizeToReset();
+            isResyncNeeded = false;
+        }
+
 		U32 frameInPacketIndex = 0;
-
 		mResults->CommitPacketAndStartNewPacket();
-		mChannelData->AdvanceToNextEdge(); // rising edge - end of RESET
-		U64 firstDataSample = mChannelData->GetSampleNumber();
-		U64 resetSampleCount = firstDataSample - resetBeginSample;
-        double resetNSec = resetSampleCount * mNSecPerSample;
-
-        if (resetNSec < mSettings->ResetTimeNSec()) {
-			// warn about this somehow
-            std::cerr << "too-short reset duration observed:" << resetNSec << " vs "
-                      << mSettings->ResetTimeNSec() << std::endl;
-		}
 
 		// data word reading loop
 		for ( ; ; ) {
-			Frame frame;
-			frame.mFlags = 0;
-			frame.mStartingSampleInclusive  = mChannelData->GetSampleNumber();
+            auto result = ReadRGBTriple();
+            if (result.mValid) {
+                Frame frame;
+                frame.mFlags = 0;
+                frame.mStartingSampleInclusive = result.mValueBeginSample;
+                frame.mStartingSampleInclusive = result.mValueEndSample;
+                frame.mData1 = result.mRGB.ConvertToU64();
+                frame.mData2 = frameInPacketIndex++;
+                mResults->AddFrame( frame );
+            } else {
+                // something error occurred, let's resynchronise
+                isResyncNeeded = true;
+            }
 
-			bool sawReset = false;
-            RGBValue rgb = ReadRGBTriple(sawReset);
-            frame.mData1 = rgb.ConvertToU64();
-            frame.mData2 = frameInPacketIndex++;
-			if (sawReset) {
-				break;
-			}
-
-			frame.mEndingSampleInclusive = mChannelData->GetSampleNumber();
-			mResults->AddFrame( frame );
+            if (isResyncNeeded || result.mIsReset) {
+                break;
+            }
 		}
 
 		mResults->CommitResults();
-		resetBeginSample = mChannelData->GetSampleNumber();
-		ReportProgress( resetBeginSample );
+        ReportProgress( mChannelData->GetSampleNumber() );
 	}
 }
 
@@ -84,73 +85,159 @@ void AsyncRgbLedAnalyzer::SynchronizeToReset()
     for ( ; ; ) {
         const U64 lowTransition = mChannelData->GetSampleNumber();
         const U64 highTransition = mChannelData->GetSampleOfNextEdge();
-        double lowTimeNSec = (highTransition - lowTransition) * mNSecPerSample;
-        if (lowTimeNSec > mSettings->ResetTimeNSec()) {
+        double lowTimeSec = (highTransition - lowTransition) / mSampleRateHz;
+        if (lowTimeSec > mSettings->ResetTiming().mMinimumSec) {
             // it's a reset, we are done
-            // advance to the start of the reset, to match the code in the main
-            // worker loop which expects this (it calls AdvanceToNextEdge to
-            // find the end of the reset)
-            mChannelData->AdvanceToAbsPosition(lowTransition);
+            // advance to the end of the reset, ready for the first
+            // ReadRGB / ReadBit
+            mChannelData->AdvanceToAbsPosition(highTransition);
             return;
         }
 
-        // advance past the rising edgge, to the next falling edge,
+        // advance past the rising edge, to the next falling edge,
         // which is our next candidate for the beginning of a RESET
         mChannelData->AdvanceToAbsPosition(highTransition);
         mChannelData->AdvanceToNextEdge();
     }
 }
 
-RGBValue AsyncRgbLedAnalyzer::ReadRGBTriple(bool& sawReset)
+auto AsyncRgbLedAnalyzer::ReadRGBTriple() -> RGBResult
 {
     const U8 bitSize =  mSettings->BitSize();
     U16 channels[3] = {0,0,0};
+    RGBResult result;
 
-    for (int channel=0; channel < 3; ++channel) {
-        U16 value = 0;
-        for (int i=0; i<bitSize; ++i) {
-            U8 bit = ReadBit();
-            if (bit == 0xff) {
-                sawReset = true;
-                return {};
+    DataBuilder builder;
+    int channel = 0;
+    for ( ; channel < 3; ) {
+        U64 value = 0;
+        builder.Reset(&value, AnalyzerEnums::MsbFirst, bitSize);
+        int i = 0;
+        for ( ; i<bitSize; ++i) {
+            auto bitResult = ReadBit();
+            if (!bitResult.mValid) {
+                break;
             }
 
-            value = (value << 1) | bit;
+            // for the first bit of channel 0, record the beginning time
+            // for accurate frame positions in the results
+            if ((i == 0) && (channel == 0)) {
+                result.mValueBeginSample = bitResult.mBeginSample;
+            }
+
+            result.mValueEndSample = bitResult.mEndSample;
+            builder.AddBit(bitResult.mBitValue);
+            if (bitResult.mIsReset) {
+                result.mIsReset = true;
+                break;
+            }
         }
-        channels[channel] = value;
+
+        if (i == bitSize) {
+            // we saw a complete channel, save it
+            channels[channel++] = value;
+        } else {
+            // partial data due to reset or invalid timing, discard
+            break;
+        }
     }
 
-    return RGBValue::CreateFromControllerOrder(mSettings->GetColorLayout(), channels);
+    if (channel == 3) {
+        // we saw three complete channels, we can use this
+        result.mRGB = RGBValue::CreateFromControllerOrder(mSettings->GetColorLayout(), channels);
+        result.mValid = true;
+    } // in all other cases, mValid stays false - no RGB data was written
+
+    return result;
 }
 
-U8 AsyncRgbLedAnalyzer::ReadBit()
+auto AsyncRgbLedAnalyzer::ReadBit() -> ReadResult
 {
-	const U64 bitBeginSample = mChannelData->GetSampleNumber();
-	mChannelData->AdvanceToNextEdge(); // falling edge
-	const U64 bitTransitionSample = mChannelData->GetSampleNumber();
+    ReadResult result;
+    result.mValid = false;
+    if (mChannelData->GetBitState() == BIT_LOW) {
+        mChannelData->AdvanceToNextEdge();
+    }
 
-    // don't advance yet, this might be a reset
-	const U64 bitEndSample = mChannelData->GetSampleOfNextEdge();
+    result.mBeginSample = mChannelData->GetSampleNumber();
+    mChannelData->AdvanceToNextEdge();
+    const U64 fallingEdgeSample = mChannelData->GetSampleNumber();
 
-    const double highNSec = (bitTransitionSample - bitBeginSample) * mNSecPerSample;
-    const double lowNSec = (bitEndSample - bitTransitionSample) * mNSecPerSample;
+    bool isHighSpeed = false;
+    const double highTimeSec = (fallingEdgeSample - result.mBeginSample) / mSampleRateHz;
 
-	// if we see a low time that's in the same magnitude as a reset pulse,
-	// let's treat it as such (reset pulses are several orders of magnitude larger
-	// than a data bit's low pulse)
-    if (lowNSec > (mSettings->ResetTimeNSec() * 0.5)) {
-		// don't advance here, the outer analysis loop will do that
-		return 0xff; // RESET marker value
-	}
-	
-    // if it wasn't a reset, we can safely advance
-	mChannelData->AdvanceToAbsPosition(bitEndSample);
+    // try regular speed
+    if (mSettings->DataTiming(BIT_LOW).mPositiveTiming.WithinTolerance(highTimeSec)) {
+        result.mBitValue = BIT_LOW;
+    } else if (mSettings->DataTiming(BIT_HIGH).mPositiveTiming.WithinTolerance(highTimeSec)) {
+        result.mBitValue = BIT_HIGH;
+    } else if (mSettings->IsHighSpeedSupported()) {
+        // try high-speed modes
+        if (mSettings->DataTiming(BIT_LOW, true).mPositiveTiming.WithinTolerance(highTimeSec)) {
+            result.mBitValue = BIT_LOW;
+            isHighSpeed = true;
+        } else if (mSettings->DataTiming(BIT_HIGH, true).mPositiveTiming.WithinTolerance(highTimeSec)) {
+            result.mBitValue = BIT_HIGH;
+            isHighSpeed = true;
+        } else {
+            mChannelData->AdvanceToAbsPosition(fallingEdgeSample);
+            return result; // invalid result, reset required
+        }
+    } else {
+        // no high speed mode, so we are done
+        mChannelData->AdvanceToAbsPosition(fallingEdgeSample);
+        return result; // invalid result, reset required
+    }
 
-	// very tolerant classification; if the high time is longer than the low time,
-	// it's a 1, and conversely if the low time is longer than high, it's a 0.
-    // TODO replace this since while it's tolerant, it doesn't work for some
-    // controllers
-    return (highNSec > lowNSec) ? 1 : 0;
+    // the positive (high) sample looks valid and we've classified it
+    // and set isHighSpeed accordingly. Now we need to see if the negative
+    // side corresponds.
+
+    // check for a too-short low timing
+    if (mChannelData->WouldAdvancingCauseTransition(mMinimumLowDurationSec * mSampleRateHz)) {
+        mChannelData->AdvanceToNextEdge();
+        return result; // invalid result, reset required
+    }
+
+    // check for a low period exceeding the minimum reset time
+    // if we exceed that, this is a reset
+    const int minResetSamples = static_cast<int>(mSettings->ResetTiming().mMinimumSec * mSampleRateHz);
+    if (!mChannelData->WouldAdvancingCauseTransition(minResetSamples)) {
+        mChannelData->Advance(minResetSamples);
+        result.mIsReset = true;
+    } else {
+        // we saw a transition, let's see the timing
+        mChannelData->AdvanceToNextEdge();
+
+        // the -1 is so the end of this frame, and start of the next, don't
+        // overlap.
+        result.mEndSample = mChannelData->GetSampleNumber() - 1;
+    }
+
+    // consistency checks - classify low time, and ensure it corresponds to
+    // the high time value
+    if (result.mIsReset) {
+        // if this bit is also a reset, we can't check the low time since it
+        // will exceed the maximums, but we still want to accept that case
+        // as valid
+        result.mValid = true;
+
+        // use the nominal negative pulse timing for the frame ending.
+        double nominalNegativeSec = mSettings->DataTiming(result.mBitValue, isHighSpeed).mNegativeTiming.mNominalSec;
+        result.mEndSample = fallingEdgeSample + (nominalNegativeSec * mSampleRateHz);
+    } else {
+        const double lowTimeSec = (result.mEndSample - fallingEdgeSample) / mSampleRateHz;
+        if (mSettings->DataTiming(result.mBitValue, isHighSpeed).mNegativeTiming.WithinTolerance(lowTimeSec)) {
+            // we are good
+            result.mValid = true;
+        } else {
+            // we could do further classification here on the error, eg speed mismatch,
+            // or bit value mismatch
+            result.mValid = false;
+        }
+    }
+
+    return result;
 }
 
 bool AsyncRgbLedAnalyzer::NeedsRerun()

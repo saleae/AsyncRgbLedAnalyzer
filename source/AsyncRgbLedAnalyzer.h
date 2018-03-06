@@ -34,14 +34,34 @@ protected: //vars
 	bool mSimulationInitialized = false;
 
 	// analysis vars:
-	U32 mSampleRateHz = 0;
-    double mNSecPerSample = 0;
+    double mSampleRateHz = 0;
 
+    // minimum valid low time for a data bit, in either speed mode supported
+    // by the controller.
+    double mMinimumLowDurationSec = 0.0;
 private:
-    RGBValue ReadRGBTriple(bool& sawReset);
 
-    U8 ReadBit();
-	
+    struct RGBResult
+    {
+        bool mValid = false;
+        bool mIsReset = false;
+        RGBValue mRGB;
+        U64 mValueBeginSample = 0;
+        U64 mValueEndSample = 0;
+    };
+
+    RGBResult ReadRGBTriple();
+
+    struct ReadResult
+    {
+        bool mValid = false;
+        bool mIsReset = false;
+        BitState mBitValue = BIT_LOW;
+        U64 mBeginSample = 0;
+        U64 mEndSample = 0;
+    };
+
+    ReadResult ReadBit();
     void SynchronizeToReset();
 };
 
