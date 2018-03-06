@@ -26,7 +26,7 @@ protected:
 	RGBValue RandomRGBValue() const;
 
     void WriteRGBTriple( const RGBValue& rgb );
-	void WriteUIntData( U32 data, U8 bit_count );
+    void WriteUIntData( U16 data, U8 bit_count );
 	void WriteBit(bool b);
 
     void WriteReset();
@@ -37,5 +37,8 @@ protected:
 	// largest value for a color channel in the selected controller.
 	// this is 2^bitSize - 1
 	U32 mMaximumChannelValue = 255;
+
+    U32 mFrameCount = 0;
+    bool mHighSpeedMode = false;
 };
 #endif //ASYNCRGBLED_SIMULATION_DATA_GENERATOR

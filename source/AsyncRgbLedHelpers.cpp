@@ -27,3 +27,14 @@ RGBValue RGBValue::CreateFromControllerOrder(ColorLayout layout, U16* values)
         return RGBValue{values[0], values[1], values[2]};
     }
 }
+
+bool TimingTolerance::WithinTolerance(const double t) const
+{
+    return (t >= mMinimumSec) && (t <= mMaximumSec);
+}
+
+bool BitTiming::WithinTolerance(const double positiveTime, const double negativeTime) const
+{
+    return mPositiveTiming.WithinTolerance(positiveTime) &&
+            mNegativeTiming.WithinTolerance(negativeTime);
+}
