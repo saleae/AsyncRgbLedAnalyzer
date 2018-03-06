@@ -2,7 +2,10 @@
 #define ASYNCRGBLED_SIMULATION_DATA_GENERATOR
 
 #include <SimulationChannelDescriptor.h>
+#include <AnalyzerHelpers.h>
+#include "AsyncRgbLedHelpers.h"
 #include <string>
+
 class AsyncRgbLedAnalyzerSettings;
 
 class AsyncRgbLedSimulationDataGenerator
@@ -19,11 +22,23 @@ protected:
 	U32 mSimulationSampleRateHz;
 
 protected:
-	void CreateSerialByte();
-	std::string mSerialText;
-	U32 mStringIndex;
+	void CreateRGBWord();
+	RGBValue RandomRGBValue() const;
 
-	SimulationChannelDescriptor mSerialSimulationData;
+    void WriteRGBTriple( const RGBValue& rgb );
+    void WriteUIntData( U16 data, U8 bit_count );
+	void WriteBit(bool b);
 
+    void WriteReset();
+	
+    ClockGenerator mClockGenerator;
+	SimulationChannelDescriptor mLEDSimulationData;
+
+	// largest value for a color channel in the selected controller.
+	// this is 2^bitSize - 1
+	U32 mMaximumChannelValue = 255;
+
+    U32 mFrameCount = 0;
+    bool mHighSpeedMode = false;
 };
 #endif //ASYNCRGBLED_SIMULATION_DATA_GENERATOR
