@@ -3,6 +3,16 @@
 
 const char* DEFAULT_CHANNEL_NAME = "Addressable LEDs (Async)";
 
+double operator "" _ns(unsigned long long x)
+{
+    return x * 1e-9;
+}
+
+double operator "" _us(unsigned long long x)
+{
+    return x * 1e-6;
+}
+
 AsyncRgbLedAnalyzerSettings::AsyncRgbLedAnalyzerSettings()
 {
     InitControllerData();
@@ -44,26 +54,82 @@ void AsyncRgbLedAnalyzerSettings::InitControllerData()
         // name, description, bits per channel, channels per frame, reset time nsec, low-speed data nsec, has high speed, high speed data nsec, color layout
 
         // https://cdn-shop.adafruit.com/datasheets/WS2811.pdf
-        {"WS2811", "Worldsemi 24-bit RGB controller", 8, 3, 50000, {{500, 2000}, {1200, 1300}}, true, {{250, 1000}, {600, 650}}, LAYOUT_RGB},
-
+        {"WS2811", "Worldsemi 24-bit RGB controller", 8, 3,
+         {50_us, 50_us, 50_us},
+         {  // low-speed times
+             {{350_ns, 500_ns, 650_ns}, {1850_ns, 2000_ns, 2150_ns}},     // 0-bit times
+             {{1050_ns, 1200_ns, 1350_ns}, {1150_ns, 1300_ns, 1450_ns}},  // 1-bit times
+         },
+         true,
+         {  // high-speed times
+             {{175_ns, 250_ns, 325_ns}, {925_ns, 1000_ns, 1075_ns}},      // 0-bit times
+             {{525_ns, 600_ns, 675_ns}, {1225_ns, 1300_ns, 1375_ns}}      // 1-bit times
+         },
+         LAYOUT_RGB},
         // https://cdn-shop.adafruit.com/datasheets/WS2812B.pdf
-        {"WS2812B", "Worldsemi 24-bit RGB integrated light-source", 8, 3, 50000, {{400, 850}, {800, 450}}, false, {{0, 0}, {0, 0}}, LAYOUT_GRB},
+        {"WS2812B", "Worldsemi 24-bit RGB integrated light-source", 8, 3,
+         {50_us, 50_us, 50_us},
+         {
+         // low-speed times
+             {{250_ns, 400_ns, 550_ns}, {700_ns, 850_ns, 1000_ns}},     // 0-bit times
+             {{650_ns, 800_ns, 950_ns}, {300_ns, 450_ns, 600_ns}},  // 1-bit times
+         },
+         false, {{}, {}}, LAYOUT_GRB},
 
         // http://www.led-color.com/upload/201609/WS2813%20LED.pdf
-        {"WS2813", "Worldsemi 24-bit RGB integrated light-source", 8, 3, 300000, {{375, 200}, {875, 200}}, false, {{0, 0}, {0, 0}}, LAYOUT_GRB},
+        {"WS2813", "Worldsemi 24-bit RGB integrated light-source", 8, 3,
+         {50_us, 50_us, 50_us},
+         {
+             // low-speed times
+             {{300_ns, 375_ns, 450_ns}, {300_ns, 875_ns, 100_us}},     // 0-bit times
+             {{750_ns, 875_ns, 1000_ns}, {300_ns, 375_ns, 100_us}},  // 1-bit times
+         },
+         false, {{}, {}}, LAYOUT_GRB},
 
         // https://www.deskontrol.net/descargas/datasheets/TM1809.pdf
-        {"TM1809", "Titan Micro 9-chanel 24-bit RGB controller", 8, 9, 24000, {{600, 1200}, {1200, 600}}, true, {{320, 600}, {600, 320}}, LAYOUT_RGB},
+        {"TM1809", "Titan Micro 9-chanel 24-bit RGB controller", 8, 9,
+         {24_ns, 24_ns, 1.0},
+         {  // low-speed times
+             {{450_ns, 600_ns, 750_ns}, {1050_ns, 1200_ns, 1350_ns}},     // 0-bit times
+             {{1050_ns, 1200_ns, 1350_ns}, {450_ns, 600_ns, 750_ns}},  // 1-bit times
+         },
+         true,
+         {  // high-speed times
+             {{250_ns, 320_ns, 390_ns}, {530_ns, 600_ns, 670_ns}},      // 0-bit times
+             {{530_ns, 600_ns, 670_ns}, {250_ns, 320_ns, 390_ns}}       // 1-bit times
+         },
+         LAYOUT_RGB},
 
         // https://www.deskontrol.net/descargas/datasheets/TM1804.pdf
-        {"TM1804", "Titan Micro 24-bit RGB controller", 8, 3, 10000, {{1000, 2000}, {2000, 1000}}, false, {{0, 0}, {0, 0}}, LAYOUT_RGB},
+        {"TM1804", "Titan Micro 24-bit RGB controller", 8, 3,
+         {10_ns, 10_ns, 1.0},
+         {  // low-speed times
+             {{850_ns, 1_us, 1150_ns}, {1850_ns, 2_us, 2150_ns}},     // 0-bit times
+             {{1850_ns, 2_us, 2150_ns}, {850_ns, 1_us, 1150_ns}},     // 1-bit times
+         },
+         false, {{}, {}},LAYOUT_RGB},
 
         // http://www.bestlightingbuy.com/pdf/UCS1903%20datasheet.pdf
-        {"UCS1903", "UCS1903 24-bit RGB controller", 8, 3, 24000, {{500, 2000}, {2000, 500}}, true, {{250, 1000}, {1000, 250}}, LAYOUT_RGB},
+        {"UCS1903", "UCS1903 24-bit RGB controller", 8, 3,
+         {24_us, 24_us, 1.0},
+         {  // low-speed times
+             {{350_ns, 500_ns, 650_ns}, {1850_ns, 2000_ns, 2150_ns}},     // 0-bit times
+             {{1850_ns, 2000_ns, 2150_ns}, {350_ns, 500_ns, 650_ns}},  // 1-bit times
+         },
+         true,
+         {  // high-speed times
+             {{175_ns, 250_ns, 325_ns}, {925_ns, 1000_ns, 1075_ns}},      // 0-bit times
+             {{925_ns, 1000_ns, 1075_ns}, {175_ns, 250_ns, 325_ns}}      // 1-bit times
+         },
+         LAYOUT_RGB},
+    #if 0
+
+        {
 
         // https://www.syncrolight.co.uk/datasheets/LPD1886%20datasheet.pdf
         {"LPD1886 - 24 bit", "LPD1886 RGB controller in 24-bit mode", 8, 3, 24000, {{200, 600}, {600, 200}}, false, {{0, 0}, {0, 0}}, LAYOUT_RGB},
         {"LPD1886 - 36 bit", "LPD1886 RGB controller in 36-bit mode", 12, 3, 24000, {{200, 600}, {600, 200}}, false, {{0, 0}, {0, 0}}, LAYOUT_RGB}
+    #endif
     };
 }
 
@@ -122,31 +188,26 @@ U8 AsyncRgbLedAnalyzerSettings::LEDChannelCount() const
     return mControllers.at(mLEDController).mChannelCount;
 }
 
-U32 AsyncRgbLedAnalyzerSettings::DataTimeNSecHigh(BitState value) const
-{
-    const auto& d = mControllers.at(mLEDController);
-    return mIsHighSpeedMode ? d.mDataTimingHighSpeedNsec[value][0]
-                            : d.mDataTimingNSec[value][0];
-}
-
-U32 AsyncRgbLedAnalyzerSettings::DataTimeNSecLow(BitState value) const
-{
-    const auto& d = mControllers.at(mLEDController);
-    return mIsHighSpeedMode ? d.mDataTimingHighSpeedNsec[value][1]
-                            : d.mDataTimingNSec[value][1];
-}
-
 bool AsyncRgbLedAnalyzerSettings::IsHighSpeedSupported() const
-    {
+{
     return mControllers.at(mLEDController).mHasHighSpeed;
 }
 
-U32 AsyncRgbLedAnalyzerSettings::ResetTimeNSec() const
+BitTiming AsyncRgbLedAnalyzerSettings::DataTiming(BitState value, bool isHighSpeed) const
 {
-    return mControllers.at(mLEDController).mResetTimeNSec;
+    const auto &c = mControllers.at(mLEDController);
+    assert(!isHighSpeed || c.mHasHighSpeed);
+
+    return isHighSpeed ? c.mDataTimingHighSpeed[value] :
+                         c.mDataTiming[value];
 }
 
-auto AsyncRgbLedAnalyzerSettings::GetColorLayout() const -> ColorLayout
+TimingTolerance AsyncRgbLedAnalyzerSettings::ResetTiming() const
+{
+    return mControllers.at(mLEDController).mResetTiming;
+}
+
+ColorLayout AsyncRgbLedAnalyzerSettings::GetColorLayout() const
 {
     return mControllers.at(mLEDController).mLayout;
 }

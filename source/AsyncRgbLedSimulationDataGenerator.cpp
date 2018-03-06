@@ -7,8 +7,6 @@
 
 #include <AnalyzerHelpers.h>
 
-const double NSEC_TO_SEC = 1e-9;
-
 AsyncRgbLedSimulationDataGenerator::AsyncRgbLedSimulationDataGenerator()
 {
 }
@@ -30,11 +28,12 @@ void AsyncRgbLedSimulationDataGenerator::Initialize( U32 simulation_sample_rate,
 	mMaximumChannelValue = (1 << mSettings->BitSize()) - 1;
 
     // TODO pass in the analyzer and call GetMinimumSampleRate?
-    mClockGenerator.Init( 12 * 1000000, mSimulationSampleRateHz );
+    const double clockFrequencyUnused = 1.0;
+    mClockGenerator.Init( clockFrequencyUnused, mSimulationSampleRateHz );
 
 	mLEDSimulationData.SetChannel( mSettings->mInputChannel );
 	mLEDSimulationData.SetSampleRate( simulation_sample_rate );
-	mLEDSimulationData.SetInitialBitState( BIT_HIGH );
+    mLEDSimulationData.SetInitialBitState( BIT_LOW );
 }
 
 U32 AsyncRgbLedSimulationDataGenerator::GenerateSimulationData( U64 largest_sample_requested, U32 sample_rate, SimulationChannelDescriptor** simulation_channel )
@@ -52,6 +51,16 @@ U32 AsyncRgbLedSimulationDataGenerator::GenerateSimulationData( U64 largest_samp
 		for (int t=0; t<6; ++t) {
 			CreateRGBWord();
 		}
+
+        ++mFrameCount;
+
+        // toggle high-speed mode every seven frames if it's supported
+        // by the LED controller
+        if ((mFrameCount % 7) == 0) {
+            if (mSettings->IsHighSpeedSupported()) {
+                mHighSpeedMode = !mHighSpeedMode;
+            }
+        }
 	}
 
 	*simulation_channel = &mLEDSimulationData;
@@ -76,33 +85,34 @@ void AsyncRgbLedSimulationDataGenerator::WriteRGBTriple( const RGBValue& rgb )
 
 void AsyncRgbLedSimulationDataGenerator::WriteReset()
 {
-    // interstitial after last data bit, before the reset goes low
-    mLEDSimulationData.Advance( mClockGenerator.AdvanceByTimeS(1e-5) );
-    mLEDSimulationData.Transition(); // go low
-    // scale by 120% since reset time is the minimum I believe
-    const double resetSec = mClockGenerator.AdvanceByTimeS(mSettings->ResetTimeNSec() * 1.2 * NSEC_TO_SEC);
+    assert(mLEDSimulationData.GetCurrentBitState() == BIT_LOW);
+    const double resetSec = mClockGenerator.AdvanceByTimeS(mSettings->ResetTiming().mNominalSec);
     mLEDSimulationData.Advance( resetSec );
-	mLEDSimulationData.Transition(); // go high to end the reset
+    // and stay low
 }
 
-void AsyncRgbLedSimulationDataGenerator::WriteUIntData( U32 data, U8 bit_count )
+void AsyncRgbLedSimulationDataGenerator::WriteUIntData( U16 data, U8 bit_count )
 {
-	U32 mask =  1 << (bit_count - 1);
+    BitExtractor extractor(data, AnalyzerEnums::MsbFirst, bit_count);
 	for( U32 bit=0; bit < bit_count; ++bit) {
-		WriteBit(data & mask);
-		mask = mask >> 1;
+        WriteBit(extractor.GetNextBit());
 	}	
 }
 
 void AsyncRgbLedSimulationDataGenerator::WriteBit(bool b)
 {
+    assert(mLEDSimulationData.GetCurrentBitState() == BIT_LOW);
+
     const BitState bs = b ? BIT_HIGH : BIT_LOW;
-    const double highSamples = mClockGenerator.AdvanceByTimeS( mSettings->DataTimeNSecHigh( bs ) * NSEC_TO_SEC );
-    const double lowSamples = mClockGenerator.AdvanceByTimeS( mSettings->DataTimeNSecLow( bs ) * NSEC_TO_SEC );
+    const BitTiming& timing = mSettings->DataTiming(bs, mHighSpeedMode);
+
+    const double highSamples = mClockGenerator.AdvanceByTimeS( timing.mPositiveTiming.mNominalSec );
+    const double lowSamples = mClockGenerator.AdvanceByTimeS( timing.mNegativeTiming.mNominalSec );
+
+    mLEDSimulationData.Transition(); // go high
     mLEDSimulationData.Advance( highSamples );
-	mLEDSimulationData.Transition(); // go low
+    mLEDSimulationData.Transition(); // go low
     mLEDSimulationData.Advance( lowSamples );
-	mLEDSimulationData.Transition(); // go high to end this bit
 }
 
 RGBValue AsyncRgbLedSimulationDataGenerator::RandomRGBValue() const

@@ -2,6 +2,17 @@
 
 #include <cstdlib> // for memcpy
 
+bool TimingTolerance::WithinTolerance(const double t) const
+{
+    return (t >= mMinimumSec) && (t <= mMaximumSec);
+}
+
+bool BitTiming::WithinTolerance(const double positiveTime, const double negativeTime) const
+{
+    return mPositiveTiming.WithinTolerance(positiveTime) &&
+            mNegativeTiming.WithinTolerance(negativeTime);
+}
+
 void RGBValue::ConvertToControllerOrder(ColorLayout layout, U16* values) const
 {
     switch (layout) {

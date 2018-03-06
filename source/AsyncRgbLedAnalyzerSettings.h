@@ -46,17 +46,11 @@ public:
 	/// LED channel count, either 3 (RGB) or 9 (three RGB outputs) at present
 	U8 LEDChannelCount() const;
 
-	/// interval to consider a reset rather than a data value
-
-    void SetHighSpeedMode(bool isHighSpeed);
-
     bool IsHighSpeedSupported() const;
 
-    U32 DataTimeNSecHigh(BitState value) const;
+    BitTiming DataTiming(BitState value, bool isHighSpeed = false) const;
 
-    U32 DataTimeNSecLow(BitState value) const;
-
-    U32 ResetTimeNSec() const;
+    TimingTolerance ResetTiming() const;
 
     ColorLayout GetColorLayout() const;
 
@@ -75,18 +69,16 @@ protected:
         std::string mDescription;
         U8 mBitsPerChannel; // = 8;
         U8 mChannelCount; // = 3;
-        U32 mResetTimeNSec;
-        U32 mDataTimingNSec[2][2];
+        TimingTolerance mResetTiming;
+        BitTiming mDataTiming[2]; // BIT_HIGH and BIT_LOW
 
-        bool mHasHighSpeed; // = trye
-        U32 mDataTimingHighSpeedNsec[2][2];
+        bool mHasHighSpeed; // = true
+        BitTiming mDataTimingHighSpeed[2]; // BIT_HIGH and BIT_LOW
 
         ColorLayout mLayout; // = LAYOUT_RGB
     };
 
     std::vector<LedControllerData> mControllers;
-
-    bool mIsHighSpeedMode = false;
 };
 
 #endif //ASYNCRGBLED_ANALYZER_SETTINGS

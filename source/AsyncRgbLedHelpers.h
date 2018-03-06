@@ -31,6 +31,34 @@ struct RGBValue
 
 };
 
+struct TimingTolerance
+{
+    TimingTolerance() = default;
+
+    TimingTolerance(double minS, double nomS, double maxS) :
+        mMinimumSec(minS), mNominalSec(nomS), mMaximumSec(maxS)
+    {;}
+
+    double mMinimumSec = 0.0;
+    double mNominalSec = 0.0;
+    double mMaximumSec = 0.0;
+
+    bool WithinTolerance(const double t) const;
+};
+
+struct BitTiming
+{
+    BitTiming() {;}
+
+    BitTiming(const TimingTolerance& pt, const TimingTolerance& nt) :
+        mPositiveTiming(pt), mNegativeTiming(nt)
+    {;}
+
+    TimingTolerance mPositiveTiming;
+    TimingTolerance mNegativeTiming;
+
+    bool WithinTolerance(const double positiveTime, const double negativeTime) const;
+};
 
 #endif // of #define ASYNCRGBLED_ANALYZER_SETTINGS
 
