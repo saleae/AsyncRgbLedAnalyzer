@@ -29,6 +29,13 @@ struct RGBValue
 
     U64 ConvertToU64() const;
 
+    /**
+     * @brief ConvertTo8Bit - adjust precision to three 8-bit values compatible
+     * witha  web / CSS color specification.
+     * @param bitSize - bits used in this RGB value, eg 8, 10, 12 or 16
+     * @param values - array of three U8s to store output web color value
+     */
+    void ConvertTo8Bit(U8 bitSize, U8* values) const;
 };
 
 struct TimingTolerance

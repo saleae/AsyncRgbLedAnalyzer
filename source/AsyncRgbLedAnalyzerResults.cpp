@@ -23,10 +23,41 @@ void AsyncRgbLedAnalyzerResults::GenerateBubbleText( U64 frame_index, Channel& c
 
 	U32 ledIndex = frame.mData2;
     RGBValue rgb = RGBValue::CreateFromU64(frame.mData1);
-	char colorBuffer[128];
-    // TODO this is wrong for 12-bit channel data
-    ::snprintf(colorBuffer, sizeof(colorBuffer), "LED %d #%02x%02x%02x", ledIndex, rgb.red, rgb.green, rgb.blue);
-	AddResultString( colorBuffer );
+
+    // generate a Web/CSS represnetation of the color value
+    U8 webColor[3];
+    rgb.ConvertTo8Bit(mSettings->BitSize(), webColor);
+    char webBuf[8];
+    ::snprintf(webBuf, sizeof(webBuf), "#%02x%02x%02x", webColor[0], webColor[1], webColor[2]);
+
+    // generate a numerical representation of each color channel,
+    // respecting the display-base setting
+    const int colorNumericBufferLength = 16;
+    char redString[colorNumericBufferLength],
+            greenString[colorNumericBufferLength],
+            blueString[colorNumericBufferLength];
+
+    AnalyzerHelpers::GetNumberString( rgb.red, display_base, mSettings->BitSize(), redString, sizeof(redString) );
+    AnalyzerHelpers::GetNumberString( rgb.green, display_base, mSettings->BitSize(), greenString, sizeof(redString) );
+    AnalyzerHelpers::GetNumberString( rgb.blue, display_base, mSettings->BitSize(), blueString, sizeof(redString) );
+
+// generate four different string variants of varying length, starting with
+// the longest and decreasing in size
+    char buf[256];
+
+    // example: LED: 13 Red: 0x1A Green: 0x2B Blue: 0x3C #1A2B3C
+    ::snprintf(buf, sizeof(buf), "LED %d Red: %s Green: %s Blue: %s %s", ledIndex, redString, greenString, blueString, webBuf);
+    AddResultString( buf );
+
+    // example: 13 R:0x1A G:0x2B B:0x3C #1A2B3C
+    ::snprintf(buf, sizeof(buf), "%d R: %s G: %s B: %s %s", ledIndex, redString, greenString, blueString, webBuf);
+    AddResultString( buf );
+
+    // example: (13) #1A2B3C
+    ::snprintf(buf, sizeof(buf), "(%d) %s", ledIndex, webBuf);
+
+    // example: #1A2B3C
+    AddResultString( webBuf );
 }
 
 void AsyncRgbLedAnalyzerResults::GenerateExportFile( const char* file, DisplayBase display_base, U32 export_type_user_id )

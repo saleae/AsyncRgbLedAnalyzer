@@ -58,3 +58,13 @@ U64 RGBValue::ConvertToU64() const
     memcpy(&result, this, sizeof(RGBValue));
     return result;
 }
+
+void RGBValue::ConvertTo8Bit(U8 bitSize, U8 *values) const
+{
+    // we could choose to support smaller bit formats here, but
+    // no existing LED controller does that, so let's omit for now
+    assert(bitSize >= 8);
+    values[0] = static_cast<U8>(red >> (bitSize - 8));
+    values[1] = static_cast<U8>(green >> (bitSize - 8));
+    values[2] = static_cast<U8>(blue >> (bitSize - 8));
+}
