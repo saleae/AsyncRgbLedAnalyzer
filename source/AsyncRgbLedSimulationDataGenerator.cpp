@@ -34,6 +34,15 @@ void AsyncRgbLedSimulationDataGenerator::Initialize( U32 simulation_sample_rate,
 	mLEDSimulationData.SetChannel( mSettings->mInputChannel );
 	mLEDSimulationData.SetSampleRate( simulation_sample_rate );
     mLEDSimulationData.SetInitialBitState( BIT_LOW );
+
+    if (mSettings->IsHighSpeedSupported()) {
+        // check if the requested sample rate is high enough
+        if (mSimulationSampleRateHz > 18000000) {
+            mDoGenerateHighSpeedMode = true;
+        } else {
+            std::cerr << "Disabling high-speed data generation due to simulated sample rate" << std::endl;
+        }
+    }
 }
 
 U32 AsyncRgbLedSimulationDataGenerator::GenerateSimulationData( U64 largest_sample_requested, U32 sample_rate, SimulationChannelDescriptor** simulation_channel )
@@ -55,11 +64,8 @@ U32 AsyncRgbLedSimulationDataGenerator::GenerateSimulationData( U64 largest_samp
         ++mFrameCount;
 
         // toggle high-speed mode every seven frames if it's supported
-        // by the LED controller
-        if ((mFrameCount % 7) == 0) {
-            if (mSettings->IsHighSpeedSupported()) {
-                mHighSpeedMode = !mHighSpeedMode;
-            }
+        if (((mFrameCount % 7) == 0) && mDoGenerateHighSpeedMode) {
+            mHighSpeedMode = !mHighSpeedMode;
         }
 	}
 

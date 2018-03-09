@@ -39,6 +39,11 @@ protected:
 	U32 mMaximumChannelValue = 255;
 
     U32 mFrameCount = 0;
+
+    /// do we generate high-speed data for some frames of this controller?
+    /// This depends on both the controller support and the requested
+    /// sample rate, if it's below 18Mhz we won't generate high speed data
+    bool mDoGenerateHighSpeedMode = false;
     bool mHighSpeedMode = false;
 };
 #endif //ASYNCRGBLED_SIMULATION_DATA_GENERATOR
