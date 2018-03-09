@@ -88,7 +88,7 @@ void AsyncRgbLedAnalyzerSettings::InitControllerData()
 
         // https://www.deskontrol.net/descargas/datasheets/TM1809.pdf
         {"TM1809", "Titan Micro 9-chanel 24-bit RGB controller", 8, 9,
-         {24_ns, 24_ns, 1.0},
+         {24_us, 24_us, 1.0},
          {  // low-speed times
              {{450_ns, 600_ns, 750_ns}, {1050_ns, 1200_ns, 1350_ns}},     // 0-bit times
              {{1050_ns, 1200_ns, 1350_ns}, {450_ns, 600_ns, 750_ns}},  // 1-bit times
@@ -102,7 +102,7 @@ void AsyncRgbLedAnalyzerSettings::InitControllerData()
 
         // https://www.deskontrol.net/descargas/datasheets/TM1804.pdf
         {"TM1804", "Titan Micro 24-bit RGB controller", 8, 3,
-         {10_ns, 10_ns, 1.0},
+         {10_us, 10_us, 1.0},
          {  // low-speed times
              {{850_ns, 1_us, 1150_ns}, {1850_ns, 2_us, 2150_ns}},     // 0-bit times
              {{1850_ns, 2_us, 2150_ns}, {850_ns, 1_us, 1150_ns}},     // 1-bit times
@@ -122,14 +122,25 @@ void AsyncRgbLedAnalyzerSettings::InitControllerData()
              {{925_ns, 1000_ns, 1075_ns}, {175_ns, 250_ns, 325_ns}}      // 1-bit times
          },
          LAYOUT_RGB},
-    #if 0
-
-        {
 
         // https://www.syncrolight.co.uk/datasheets/LPD1886%20datasheet.pdf
-        {"LPD1886 - 24 bit", "LPD1886 RGB controller in 24-bit mode", 8, 3, 24000, {{200, 600}, {600, 200}}, false, {{0, 0}, {0, 0}}, LAYOUT_RGB},
-        {"LPD1886 - 36 bit", "LPD1886 RGB controller in 36-bit mode", 12, 3, 24000, {{200, 600}, {600, 200}}, false, {{0, 0}, {0, 0}}, LAYOUT_RGB}
-    #endif
+        {"LPD1886 - 24 bit", "LPD1886 RGB controller in 24-bit mode", 8, 3,
+         {24_us, 30_us, 1.0},
+         {
+             // low-speed times
+             {{150_ns, 200_ns, 280_ns}, {500_ns, 600_ns, 10_us}},     // 0-bit times
+             {{450_ns, 600_ns, 9_us}, {150_ns, 200_ns, 10_us}},  // 1-bit times
+         },
+         false, {{}, {}},LAYOUT_RGB},
+
+        {"LPD1886 - 36 bit", "LPD1886 RGB controller in 36-bit mode", 12, 3,
+         {24_us, 30_us, 1.0},
+         {
+             // low-speed times
+             {{150_ns, 200_ns, 280_ns}, {500_ns, 600_ns, 10_us}},     // 0-bit times
+             {{450_ns, 600_ns, 9_us}, {150_ns, 200_ns, 10_us}},  // 1-bit times
+         },
+         false, {{}, {}},LAYOUT_RGB},
     };
 }
 
