@@ -16,6 +16,15 @@ AsyncRgbLedAnalyzerResults::~AsyncRgbLedAnalyzerResults()
 {
 }
 
+void AsyncRgbLedAnalyzerResults::GenerateRGBStrings(const RGBValue& rgb, DisplayBase base, size_t bufSize, char* redBuf, char* greenBuff, char* blueBuf)
+{
+    // generate a numerical representation of each color channel,
+    // respecting the display-base setting
+    AnalyzerHelpers::GetNumberString( rgb.red, base, mSettings->BitSize(), redBuf, bufSize );
+    AnalyzerHelpers::GetNumberString( rgb.green, base, mSettings->BitSize(), greenBuff, bufSize );
+    AnalyzerHelpers::GetNumberString( rgb.blue, base, mSettings->BitSize(), blueBuf, bufSize );
+}
+
 void AsyncRgbLedAnalyzerResults::GenerateBubbleText( U64 frame_index, Channel& channel, DisplayBase display_base )
 {
 	ClearResultStrings();
@@ -24,22 +33,18 @@ void AsyncRgbLedAnalyzerResults::GenerateBubbleText( U64 frame_index, Channel& c
 	U32 ledIndex = frame.mData2;
     RGBValue rgb = RGBValue::CreateFromU64(frame.mData1);
 
-    // generate a Web/CSS represnetation of the color value
+    // generate a Web/CSS representation of the color value
     U8 webColor[3];
     rgb.ConvertTo8Bit(mSettings->BitSize(), webColor);
     char webBuf[8];
     ::snprintf(webBuf, sizeof(webBuf), "#%02x%02x%02x", webColor[0], webColor[1], webColor[2]);
 
-    // generate a numerical representation of each color channel,
-    // respecting the display-base setting
     const int colorNumericBufferLength = 16;
     char redString[colorNumericBufferLength],
             greenString[colorNumericBufferLength],
             blueString[colorNumericBufferLength];
 
-    AnalyzerHelpers::GetNumberString( rgb.red, display_base, mSettings->BitSize(), redString, sizeof(redString) );
-    AnalyzerHelpers::GetNumberString( rgb.green, display_base, mSettings->BitSize(), greenString, sizeof(redString) );
-    AnalyzerHelpers::GetNumberString( rgb.blue, display_base, mSettings->BitSize(), blueString, sizeof(redString) );
+   GenerateRGBStrings(rgb, display_base, colorNumericBufferLength, redString, greenString, blueString);
 
 // generate four different string variants of varying length, starting with
 // the longest and decreasing in size
@@ -67,20 +72,38 @@ void AsyncRgbLedAnalyzerResults::GenerateExportFile( const char* file, DisplayBa
 	U64 trigger_sample = mAnalyzer->GetTriggerSample();
 	U32 sample_rate = mAnalyzer->GetSampleRate();
 
-	file_stream << "Time [s],Value" << std::endl;
+    file_stream << "Time [s], Packet ID, LED Index, Red, Green, Blue, Web-CSS" << std::endl;
 
-	U64 num_frames = GetNumFrames();
-	for( U32 i=0; i < num_frames; i++ )
+    const U64 num_frames = GetNumFrames();
+    for( U64 i=0; i < num_frames; i++ )
 	{
-		Frame frame = GetFrame( i );
-		
+        const Frame frame = GetFrame( i );
+        U64 packetId = GetPacketContainingFrameSequential(num_frames);
+        if (packetId == INVALID_RESULT_INDEX) {
+            packetId = -1;
+        }
+
 		char time_str[128];
 		AnalyzerHelpers::GetTimeString( frame.mStartingSampleInclusive, trigger_sample, sample_rate, time_str, 128 );
 
-		char number_str[128];
-		AnalyzerHelpers::GetNumberString( frame.mData1, display_base, 8, number_str, 128 );
+        RGBValue rgb = RGBValue::CreateFromU64(frame.mData1);
 
-		file_stream << time_str << "," << number_str << std::endl;
+        // RGB numerical value representation
+        const size_t bufSize = 16;
+        char rs[bufSize], gs[bufSize], bs[bufSize];
+        GenerateRGBStrings(rgb, display_base, bufSize, rs, gs, bs);
+
+        // CSS representation
+        U8 webColor[3];
+        rgb.ConvertTo8Bit(mSettings->BitSize(), webColor);
+        char webBuf[8];
+        ::snprintf(webBuf, sizeof(webBuf), "#%02x%02x%02x", webColor[0], webColor[1], webColor[2]);
+
+        file_stream << time_str << "," << packetId << "," << frame.mData2 << ","
+                    << rs << ","
+                    << gs << ","
+                    << bs << ","
+                    << webBuf << std::endl;
 
 		if( UpdateExportProgressAndCheckForCancel( i, num_frames ) == true )
 		{

@@ -3,6 +3,8 @@
 
 #include <AnalyzerResults.h>
 
+#include "AsyncRgbLedHelpers.h" // for RGBValue
+
 class AsyncRgbLedAnalyzer;
 class AsyncRgbLedAnalyzerSettings;
 
@@ -23,7 +25,10 @@ protected: //functions
 
 protected:  //vars
 	AsyncRgbLedAnalyzerSettings* mSettings = nullptr;
-	AsyncRgbLedAnalyzer* mAnalyzer = nullptr;
+    AsyncRgbLedAnalyzer* mAnalyzer = nullptr;
+private:
+
+    void GenerateRGBStrings(const RGBValue &rgb, DisplayBase base, size_t bufSize, char *redBuf, char *greenBuff, char *blueBuf);
 };
 
 #endif //ASYNCRGBLED_ANALYZER_RESULTS
