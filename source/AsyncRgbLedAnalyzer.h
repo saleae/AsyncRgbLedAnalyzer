@@ -39,6 +39,9 @@ protected: //vars
     // minimum valid low time for a data bit, in either speed mode supported
     // by the controller.
     double mMinimumLowDurationSec = 0.0;
+
+    bool mFirstBitAfterReset = false;
+    bool mDidDetectHighSpeed = false;
 private:
 
     struct RGBResult
@@ -63,6 +66,8 @@ private:
 
     ReadResult ReadBit();
     void SynchronizeToReset();
+
+    bool DetectSpeedMode(double positiveTimeSec, double negativeTimeSec, BitState& value);
 };
 
 extern "C" {

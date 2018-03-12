@@ -46,9 +46,9 @@ void AsyncRgbLedAnalyzer::WorkerThread()
             SynchronizeToReset();
             isResyncNeeded = false;
         }
-
-		U32 frameInPacketIndex = 0;
-		mResults->CommitPacketAndStartNewPacket();
+        mFirstBitAfterReset = true;
+        U32 frameInPacketIndex = 0;
+        mResults->CommitPacketAndStartNewPacket();
 
 		// data word reading loop
 		for ( ; ; ) {
@@ -57,10 +57,11 @@ void AsyncRgbLedAnalyzer::WorkerThread()
                 Frame frame;
                 frame.mFlags = 0;
                 frame.mStartingSampleInclusive = result.mValueBeginSample;
-                frame.mStartingSampleInclusive = result.mValueEndSample;
+                frame.mEndingSampleInclusive = result.mValueEndSample;
                 frame.mData1 = result.mRGB.ConvertToU64();
                 frame.mData2 = frameInPacketIndex++;
                 mResults->AddFrame( frame );
+                mResults->CommitResults();
             } else {
                 // something error occurred, let's resynchronise
                 isResyncNeeded = true;
@@ -71,7 +72,7 @@ void AsyncRgbLedAnalyzer::WorkerThread()
             }
 		}
 
-		mResults->CommitResults();
+        mResults->CommitResults();
         ReportProgress( mChannelData->GetSampleNumber() );
 	}
 }
@@ -127,10 +128,7 @@ auto AsyncRgbLedAnalyzer::ReadRGBTriple() -> RGBResult
 
             result.mValueEndSample = bitResult.mEndSample;
             builder.AddBit(bitResult.mBitValue);
-            if (bitResult.mIsReset) {
-                result.mIsReset = true;
-                break;
-            }
+            result.mIsReset = bitResult.mIsReset;
         }
 
         if (i == bitSize) {
@@ -162,40 +160,28 @@ auto AsyncRgbLedAnalyzer::ReadBit() -> ReadResult
     result.mBeginSample = mChannelData->GetSampleNumber();
     mChannelData->AdvanceToNextEdge();
     const U64 fallingEdgeSample = mChannelData->GetSampleNumber();
-
-    bool isHighSpeed = false;
     const double highTimeSec = (fallingEdgeSample - result.mBeginSample) / mSampleRateHz;
 
-    // try regular speed
-    if (mSettings->DataTiming(BIT_LOW).mPositiveTiming.WithinTolerance(highTimeSec)) {
-        result.mBitValue = BIT_LOW;
-    } else if (mSettings->DataTiming(BIT_HIGH).mPositiveTiming.WithinTolerance(highTimeSec)) {
-        result.mBitValue = BIT_HIGH;
-    } else if (mSettings->IsHighSpeedSupported()) {
-        // try high-speed modes
-        if (mSettings->DataTiming(BIT_LOW, true).mPositiveTiming.WithinTolerance(highTimeSec)) {
+    if (mFirstBitAfterReset) {
+        // we can't classify yet, need to wait until we have the low pulse timing
+    } else {
+        // clasify based on existing value
+        // ensure consistency with previously detected speed setting
+        if (mSettings->DataTiming(BIT_LOW, mDidDetectHighSpeed).mPositiveTiming.WithinTolerance(highTimeSec)) {
             result.mBitValue = BIT_LOW;
-            isHighSpeed = true;
-        } else if (mSettings->DataTiming(BIT_HIGH, true).mPositiveTiming.WithinTolerance(highTimeSec)) {
+        } else if (mSettings->DataTiming(BIT_HIGH, mDidDetectHighSpeed).mPositiveTiming.WithinTolerance(highTimeSec)) {
             result.mBitValue = BIT_HIGH;
-            isHighSpeed = true;
         } else {
+            std::cerr << "positive pulse timing doesn't match detected speed mode" << std::endl;
             mChannelData->AdvanceToAbsPosition(fallingEdgeSample);
             return result; // invalid result, reset required
         }
-    } else {
-        // no high speed mode, so we are done
-        mChannelData->AdvanceToAbsPosition(fallingEdgeSample);
-        return result; // invalid result, reset required
     }
-
-    // the positive (high) sample looks valid and we've classified it
-    // and set isHighSpeed accordingly. Now we need to see if the negative
-    // side corresponds.
 
     // check for a too-short low timing
     if (mChannelData->WouldAdvancingCauseTransition(mMinimumLowDurationSec * mSampleRateHz)) {
         mChannelData->AdvanceToNextEdge();
+        std::cerr << "too show low pulse, invalid bit" << std::endl;
         return result; // invalid result, reset required
     }
 
@@ -203,6 +189,13 @@ auto AsyncRgbLedAnalyzer::ReadBit() -> ReadResult
     // if we exceed that, this is a reset
     const int minResetSamples = static_cast<int>(mSettings->ResetTiming().mMinimumSec * mSampleRateHz);
     if (!mChannelData->WouldAdvancingCauseTransition(minResetSamples)) {
+        // if we see a single bit in between resets, we can't decode the speed,
+        // but this is meaningless anyway, so return an error
+        if (mFirstBitAfterReset) {
+            std::cerr << "No complete bit between resets, can't decode" << std::endl;
+            return result; // return invalid
+        }
+
         mChannelData->Advance(minResetSamples);
         result.mIsReset = true;
     } else {
@@ -214,8 +207,6 @@ auto AsyncRgbLedAnalyzer::ReadBit() -> ReadResult
         result.mEndSample = mChannelData->GetSampleNumber() - 1;
     }
 
-    // consistency checks - classify low time, and ensure it corresponds to
-    // the high time value
     if (result.mIsReset) {
         // if this bit is also a reset, we can't check the low time since it
         // will exceed the maximums, but we still want to accept that case
@@ -223,21 +214,61 @@ auto AsyncRgbLedAnalyzer::ReadBit() -> ReadResult
         result.mValid = true;
 
         // use the nominal negative pulse timing for the frame ending.
-        double nominalNegativeSec = mSettings->DataTiming(result.mBitValue, isHighSpeed).mNegativeTiming.mNominalSec;
+        double nominalNegativeSec = mSettings->DataTiming(result.mBitValue, mDidDetectHighSpeed).mNegativeTiming.mNominalSec;
         result.mEndSample = fallingEdgeSample + (nominalNegativeSec * mSampleRateHz);
-    } else {
+    } else if (mFirstBitAfterReset) {
         const double lowTimeSec = (result.mEndSample - fallingEdgeSample) / mSampleRateHz;
-        if (mSettings->DataTiming(result.mBitValue, isHighSpeed).mNegativeTiming.WithinTolerance(lowTimeSec)) {
+        // two-way classification. This is necessary because the the 0-data
+        // positive pulse of low-speed mode can match the 1-data positive pulse
+        // in high speed mode, for some controllers. Hence we need to correlate
+        // the high and low times to detect the speed mode
+
+        // this also sets mBitValue correct as a side-effect of the detection
+        result.mValid = DetectSpeedMode(highTimeSec, lowTimeSec, result.mBitValue);
+    } else {
+        // already detected the speed mode, ensure consistency
+        const double lowTimeSec = (result.mEndSample - fallingEdgeSample) / mSampleRateHz;
+        if (mSettings->DataTiming(result.mBitValue, mDidDetectHighSpeed).mNegativeTiming.WithinTolerance(lowTimeSec)) {
             // we are good
             result.mValid = true;
         } else {
             // we could do further classification here on the error, eg speed mismatch,
             // or bit value mismatch
+            std::cerr << "negative pulse timing doesn't match positive pulse" << std::endl;
             result.mValid = false;
         }
     }
 
     return result;
+}
+
+bool AsyncRgbLedAnalyzer::DetectSpeedMode(double positiveTimeSec, double negativeTimeSec, BitState& value)
+{
+    mDidDetectHighSpeed = false;
+
+    // low speed bits
+    for (const auto b : {BIT_LOW, BIT_HIGH}) {
+        if (mSettings->DataTiming(b).WithinTolerance(positiveTimeSec, negativeTimeSec)) {
+            value = b;
+            mFirstBitAfterReset = false;
+            return true;
+        }
+    }
+
+    if (mSettings->IsHighSpeedSupported()) {
+        // high speed bits
+        for (const auto b : {BIT_LOW, BIT_HIGH}) {
+            if (mSettings->DataTiming(b, true).WithinTolerance(positiveTimeSec, negativeTimeSec)) {
+                mDidDetectHighSpeed = true;
+                value = b;
+                mFirstBitAfterReset = false;
+                return true;
+            }
+        }
+    } // of high-speed mode tests
+
+    std::cerr << "failed to classify: " << positiveTimeSec << "/" << negativeTimeSec << std::endl;
+    return false;
 }
 
 bool AsyncRgbLedAnalyzer::NeedsRerun()
