@@ -5,6 +5,7 @@
 #include <AnalyzerChannelData.h>
 
 #include <iostream>
+#include <algorithm> // for std::max/max()
 
 AsyncRgbLedAnalyzer::AsyncRgbLedAnalyzer()
 :	Analyzer2(),  

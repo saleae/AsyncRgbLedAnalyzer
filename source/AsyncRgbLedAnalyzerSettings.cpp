@@ -1,4 +1,7 @@
 #include "AsyncRgbLedAnalyzerSettings.h"
+
+#include <cassert>
+
 #include <AnalyzerHelpers.h>
 
 const char* DEFAULT_CHANNEL_NAME = "Addressable LEDs (Async)";

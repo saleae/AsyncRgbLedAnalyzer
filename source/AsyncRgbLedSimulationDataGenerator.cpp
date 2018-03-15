@@ -2,6 +2,7 @@
 
 #include <cmath> // for M_PI, cos
 #include <iostream>
+#include <cassert>
 
 #include "AsyncRgbLedAnalyzerSettings.h"
 

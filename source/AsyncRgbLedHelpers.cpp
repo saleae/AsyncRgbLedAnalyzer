@@ -1,6 +1,7 @@
 #include "AsyncRgbLedHelpers.h"
 
-#include <cstdlib> // for memcpy
+#include <cassert>
+#include <cstring> // for memcpy
 
 bool TimingTolerance::WithinTolerance(const double t) const
 {
