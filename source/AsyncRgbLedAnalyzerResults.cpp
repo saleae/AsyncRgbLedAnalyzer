@@ -121,9 +121,20 @@ void AsyncRgbLedAnalyzerResults::GenerateFrameTabularText( U64 frame_index, Disp
 	Frame frame = GetFrame( frame_index );
 	ClearTabularText();
 
-	char number_str[128];
-	AnalyzerHelpers::GetNumberString( frame.mData1, display_base, 8, number_str, 128 );
-	AddTabularText( number_str );
+    const U32 ledIndex = frame.mData2;
+    const RGBValue rgb = RGBValue::CreateFromU64(frame.mData1);
+
+    const int colorNumericBufferLength = 8;
+    char redString[colorNumericBufferLength],
+            greenString[colorNumericBufferLength],
+            blueString[colorNumericBufferLength];
+
+   GenerateRGBStrings(rgb, display_base, colorNumericBufferLength, redString, greenString, blueString);
+
+   // target content: [13] 0x1A, 0x2B, 0x3C
+   char buf[64];
+   ::snprintf(buf, 64, "[%d] %s, %s, %s", ledIndex, redString, greenString, blueString);
+    AddTabularText( buf );
 #endif
 }
 
