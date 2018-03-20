@@ -11,3 +11,6 @@ Makefile
 .vscode/
 cmake_install.cmake
 libAsyncRgbLedAnalyzer.*
+bin/*
+external/*
+compile_commands.json

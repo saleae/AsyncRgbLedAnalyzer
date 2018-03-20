@@ -3,7 +3,13 @@ cmake_minimum_required (VERSION 3.0)
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED YES)
 
+# custom CMake Modules are located in the cmake directory.
+set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
+
 project(AsyncRgbLedAnalyzer)
+
+option(ENABLE_ASTYLE  "Set to ON to enable AStyle formating of the code" ON)
+
 
 set(SOURCES source/AsyncRgbLedAnalyzer.cpp
             source/AsyncRgbLedAnalyzer.h
@@ -37,3 +43,9 @@ target_include_directories(AsyncRgbLedAnalyzer PRIVATE ${ANALYZER_SDK_ROOT}/incl
 
 # TODO - define installation dir
 #install(TARGETS AsyncRgbLedAnalyzer RUNTIME DESTINATION ${ANALYZER_PLUGIN_DIR})
+
+# for AStyle
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
+# FlightGear packaging (to build a source tarball)
+include( ExternalAStyle )
