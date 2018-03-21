@@ -47,5 +47,4 @@ target_include_directories(AsyncRgbLedAnalyzer PRIVATE ${ANALYZER_SDK_ROOT}/incl
 # for AStyle
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-# FlightGear packaging (to build a source tarball)
 include( ExternalAStyle )
