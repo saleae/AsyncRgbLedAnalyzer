@@ -44,7 +44,17 @@ target_include_directories(AsyncRgbLedAnalyzer PRIVATE ${ANALYZER_SDK_ROOT}/incl
 # TODO - define installation dir
 #install(TARGETS AsyncRgbLedAnalyzer RUNTIME DESTINATION ${ANALYZER_PLUGIN_DIR})
 
-# for AStyle
-set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+#------------------------------------------------------------------------
+# Testing
 
+add_subdirectory(AnalyzerTestHarness)
+
+add_executable(AsyncRgbLedTest tests/AsyncRgbLedTestDriver.cpp ${SOURCES})
+target_link_libraries(AsyncRgbLedTest AnalyzerTestHarness)
+
+add_test(AsyncRgbLedTest ${EXECUTABLE_OUTPUT_PATH}/${name})
+
+#------------------------------------------------------------------------
+# AStyle 
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 include( ExternalAStyle )
