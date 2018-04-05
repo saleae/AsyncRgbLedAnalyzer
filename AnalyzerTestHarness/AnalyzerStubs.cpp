@@ -3,6 +3,7 @@
 #include <vector>
 #include <memory>
 #include <map>
+#include <iostream>
 
 #include "MockChannelData.h"
 #include "AnalyzerResults.h"
@@ -56,8 +57,10 @@ AnalyzerChannelData* Analyzer::GetAnalyzerChannelData(Channel &channel)
 {
     D_PTR();
     auto it = d->channelData.find(channel);
-    if (it == d->channelData.end())
+    if (it == d->channelData.end()) {
+        std::cerr << "Couldn't find channel data for " << channel.mDeviceId << "/" << channel.mChannelIndex << std::endl;
         return nullptr;
+    }
 
     return it->second;
 }
@@ -70,13 +73,13 @@ void Analyzer::ReportProgress( U64 sample_number )
 void Analyzer::SetAnalyzerResults( AnalyzerResults* results )
 {
     D_PTR();
-    d->results.reset(results);
+    d->results = results;
 }
 
 void Analyzer::SetAnalyzerSettings(AnalyzerSettings *settings)
 {
     D_PTR();
-    d->settings.reset(settings);
+    d->settings = settings;
 }
 
 void Analyzer::KillThread()
@@ -158,7 +161,11 @@ AnalyzerData* GetDataFromAnalyzer(Analyzer* instance)
 
 AnalyzerResults* GetResultsFromAnalyzer(Analyzer* instance)
 {
-    return static_cast<DataExtractor*>(instance)->testData()->results.get();
+    return static_cast<DataExtractor*>(instance)->testData()->results;
+}
+
+AnalyzerData::~AnalyzerData()
+{
 }
 
 } // of namespace AnalyzerTest

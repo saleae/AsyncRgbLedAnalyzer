@@ -12,13 +12,15 @@ namespace AnalyzerTest
 class AnalyzerData
 {
 public:
+    ~AnalyzerData();
+
     U32 simulationRateHz = 12000000;
     U32 sampleRateHz = 12000000;
     std::map<Channel, MockChannelData*> channelData;
 
 
-    std::unique_ptr<AnalyzerResults> results;
-    std::unique_ptr<AnalyzerSettings> settings;
+    AnalyzerResults* results = nullptr;
+    AnalyzerSettings* settings = nullptr;
 };
 
 AnalyzerResults* GetResultsFromAnalyzer(Analyzer* instance);

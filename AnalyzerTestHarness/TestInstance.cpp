@@ -7,6 +7,7 @@
 
 extern "C" {
     Analyzer* __cdecl CreateAnalyzer( );
+    const char* __cdecl GetAnalyzerName();
 }
 
 namespace AnalyzerTest
@@ -23,14 +24,27 @@ Instance::~Instance()
 
 }
 
-void Instance::CreatePlugin()
+void Instance::CreatePlugin(const std::string& name)
 {
+    assert(name == GetAnalyzerName());
     mAnalyzerInstance.reset(CreateAnalyzer());
+    assert(mAnalyzerInstance.get());
+    assert(mAnalyzerInstance->GetAnalyzerName() == name);
 }
 
 void Instance::SetChannelData(const Channel& chan, MockChannelData *mockData)
 {
     GetDataFromAnalyzer(mAnalyzerInstance.get())->channelData[chan] = mockData;
+}
+
+void Instance::SetSampleRate(U64 sample_rate_hz)
+{
+    GetDataFromAnalyzer(mAnalyzerInstance.get())->sampleRateHz = sample_rate_hz;
+}
+
+U64 Instance::GetSampleRate() const
+{
+    return GetDataFromAnalyzer(mAnalyzerInstance.get())->sampleRateHz;
 }
 
 void Instance::RunAnalyzerWorker(int timeoutSec)
@@ -72,6 +86,11 @@ SimulatedChannel *Instance::GetSimulationChannel(const Channel &chan)
     }
 
     return nullptr;
+}
+
+AnalyzerSettings *Instance::GetSettings()
+{
+    return GetDataFromAnalyzer(mAnalyzerInstance.get())->settings;
 }
 
 

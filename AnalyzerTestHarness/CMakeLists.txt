@@ -11,6 +11,7 @@ set(TEST_HARNESS_SOURCES
     MockSimulatedChannelDescriptor.h
     MockResults.h
     MockResults.cpp
+    MockSettings.h
     SettingsStubs.cpp 
     TestAnalyzerData.h
     TestInstance.cpp

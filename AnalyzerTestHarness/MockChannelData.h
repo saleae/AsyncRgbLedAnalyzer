@@ -19,7 +19,48 @@ public:
 
     void TestAppendTransitions(const std::vector<U64>& transitions);
 
+    // base case ending with std::vec<double>
+    double TestAppendIntervals(U64 sampleRateHz, double startingError, const std::vector<double>& intervals)
+    {
+        return InnerAppendIntervals(sampleRateHz, startingError, intervals);
+    }
+
+    // base case ending with a single double
+    double TestAppendIntervals(U64 sampleRateHz, double startingError, double interval)
+    {
+        std::vector<double> i({interval,});
+        return InnerAppendIntervals(sampleRateHz, startingError, i);
+    }
+
+    template<typename... Targs>
+    double TestAppendIntervals(U64 sampleRateHz, double startingError, const std::vector<double>& intervals, Targs... Fargs)
+    {
+        const double err = InnerAppendIntervals(sampleRateHz, startingError, intervals); // base version
+        return TestAppendIntervals(sampleRateHz, err, Fargs...); // expand the pack and recurse
+    }
+
+    template<typename... Targs>
+    double TestAppendIntervals(U64 sampleRateHz, double startingError, double interval, Targs... Fargs)
+    {
+        std::vector<double> i({interval,});
+        const double err = InnerAppendIntervals(sampleRateHz, startingError, i); // base version
+        return TestAppendIntervals(sampleRateHz, err, Fargs...); // expand the pack and recurse
+    }
+
+    void ResetCurrentSample(U64 sampleNumber = 0);
+
+    U32 AdvanceToSample(U64 sample); // returns number of times the value changed
 private:
+    friend class ::AnalyzerChannelData;
+    /**
+     * @brief TestAppendIntervals - specify transition intervals in seconds (
+     * or fractions thereof)
+     * @param samleRateHz - time basis for conversion to samples
+     * @param intervals
+     */
+    double InnerAppendIntervals(U64 sampleRateHz, double startingError, const std::vector<double>& intervals);
+
+
     BitState mCurrentState = BIT_LOW;
     U64 mCurrentSample = 0;
 
