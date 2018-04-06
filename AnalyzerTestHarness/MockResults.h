@@ -33,6 +33,12 @@ public:
     };
 
     void AddString(const std::string& s);
+
+    void SetCancelled(bool cancelled);
+
+    typedef std::pair<U64, U64> FrameRange;
+    FrameRange GetFrameRangeForPacket(U64 packetIndex) const;
+
 private:
     friend ::AnalyzerResults;
 
@@ -42,6 +48,7 @@ private:
     std::vector<MarkerInfo> mMarkers;
     std::vector<StringInfo> mStrings;
 
+    bool mCancelled = false;
 };
 
 }  // of namespace

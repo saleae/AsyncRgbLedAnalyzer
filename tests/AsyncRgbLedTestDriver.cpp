@@ -5,9 +5,13 @@
 #include "MockSettings.h"
 
 #include <cassert>
+#include <iostream>
 
 #define TEST_VERIFY_EQ(a, b) \
     assert(a == b)
+
+#define TEST_VERIFY_EQ_CHARS(a, b) \
+    assert(!strcmp(a, b))
 
 namespace {
 
@@ -22,6 +26,8 @@ double operator "" _us( unsigned long long x )
 }
 
 } // of anonymous namespace
+
+const Channel TEST_CHANNEL = Channel(0, 0, DIGITAL_CHANNEL);
 
 using namespace AnalyzerTest;
 
@@ -42,10 +48,29 @@ void ws2811_test_append_byte(std::vector<double>& result, U8 byte)
 std::vector<double> ws2811_test_rgb(U8 red, U8 green, U8 blue)
 {
     std::vector<double> r;
+    r.reserve(48); // 48 transitions per 8-bit RGB word
     ws2811_test_append_byte(r, red);
     ws2811_test_append_byte(r, green);
     ws2811_test_append_byte(r, blue);
     return r;
+}
+
+std::vector<double> ws2811_test_rgb_and_reset(U8 red, U8 green, U8 blue, double resetDuration)
+{
+    std::vector<double> r = ws2811_test_rgb(red, green, blue);
+    r.back() = resetDuration;
+    return r;
+}
+
+void setupStandardTestSettings(Instance& plugin, const std::string& controllerName)
+{
+    auto mockSettings = MockSettings::MockFromSettings(plugin.GetSettings());
+
+    mockSettings->GetSetting("LED Channel")->mChannel = TEST_CHANNEL;
+    mockSettings->GetSetting("LED Controller")->SetNumberedListIndexByLabel(controllerName);
+
+    // push values into the plugin
+    plugin.GetSettings()->SetSettingsFromInterfaces();
 }
 
 void testFunction1()
@@ -53,32 +78,42 @@ void testFunction1()
     Instance pluginInstance;
     pluginInstance.CreatePlugin("Addressable LEDs (Async)");
 
-    // setup test settings
+    setupStandardTestSettings(pluginInstance, "WS2811");
 
     pluginInstance.SetSampleRate(20000000);
 
     MockChannelData channelData;
     channelData.TestSetInitialBitState(BIT_LOW);
-    channelData.TestAppendIntervals(pluginInstance.GetSampleRate(),
-    50_us, ws2811_test_rgb(0xaa, 0xbb, 0xcc),
-             ws2811_test_rgb(0x22, 0x33, 0x44),
-             ws2811_test_rgb(0x66, 0x77, 0x88),
-    50_us,
-             ws2811_test_rgb(0xaa, 0xbb, 0xcc),
-             ws2811_test_rgb(0x22, 0x33, 0x44),
-             ws2811_test_rgb(0x66, 0x77, 0x88),
-    50_us);
+    channelData.TestAppendIntervals(pluginInstance.GetSampleRate(), 0.0,
+                                    55_us,
+                                    // first packet
+                                    ws2811_test_rgb(0xaa, 0xbb, 0xcc),
+                                    ws2811_test_rgb(0x22, 0x33, 0x44),
+                                    ws2811_test_rgb_and_reset(0x66, 0x77, 0x88, 55_us),
+                                    // second packet
+                                    ws2811_test_rgb(0xaa, 0xbb, 0xcc),
+                                    ws2811_test_rgb(0x22, 0x33, 0x44),
+                                    ws2811_test_rgb_and_reset(0x66, 0x77, 0x88, 55_us)
+                                    );
 
-    pluginInstance.SetChannelData(Channel(0, 0, DIGITAL_CHANNEL), &channelData);
-    // other channels as required
-
+    pluginInstance.SetChannelData(TEST_CHANNEL, &channelData);
     pluginInstance.RunAnalyzerWorker();
 
     // validation
-
     auto results = MockResultData::MockFromResults(pluginInstance.GetResults());
 
     TEST_VERIFY_EQ(results->GetFrame(2).mData1, 1234);
+
+    TEST_VERIFY_EQ(results->GetFrame(5).mData1, 1234);
+
+// verify LED indices between reset pulses
+    TEST_VERIFY_EQ(results->GetFrame(2).mData2, 2);
+    TEST_VERIFY_EQ(results->GetFrame(3).mData2, 0);
+    TEST_VERIFY_EQ(results->GetFrame(5).mData2, 2);
+
+    // verify packets
+    TEST_VERIFY_EQ(results->GetFrameRangeForPacket(0), MockResultData::FrameRange(0, 2));
+    TEST_VERIFY_EQ(results->GetFrameRangeForPacket(1), MockResultData::FrameRange(3, 5));
 }
 
 void testSettings()
@@ -105,6 +140,7 @@ void testSettings()
     TEST_VERIFY_EQ(setting->GetType(), INTERFACE_NUMBER_LIST);
     auto controllerSettingMock = MockSettingInterface::MockFromInterface(setting);
 
+    TEST_VERIFY_EQ_CHARS(setting->GetTitle(), "LED Controller");
 }
 
 void testLoadSettings()

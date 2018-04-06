@@ -6,6 +6,8 @@
 namespace AnalyzerTest
 {
 
+class MockSettingInterface;
+
 class MockSettings
 {
 public:
@@ -20,12 +22,16 @@ public:
 
     std::vector<SettingChannel> mChannels;
     std::vector<AnalyzerSettingInterface*> mInterfaces;
+
+    MockSettingInterface* GetSetting(const std::string& title);
 };
 
 class MockSettingInterface
 {
 public:
     static MockSettingInterface *MockFromInterface(AnalyzerSettingInterface *iface);
+
+    void SetNumberedListIndexByLabel(const std::string& name);
 
     AnalyzerInterfaceTypeId mTypeId;
     std::string mTitle;

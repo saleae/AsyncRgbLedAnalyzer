@@ -88,9 +88,38 @@ MockSettings* MockSettings::MockFromSettings(AnalyzerSettings* settings)
     return static_cast<DataExtractor*>(settings)->mockData();
 }
 
+MockSettingInterface *MockSettings::GetSetting(const std::string &title)
+{
+    auto it = std::find_if(mInterfaces.begin(), mInterfaces.end(),
+                  [title](AnalyzerSettingInterface* interface)
+    {
+            auto mockInterface = MockSettingInterface::MockFromInterface(interface);
+            return title == mockInterface->mTitle;
+    });
+
+    if (it == mInterfaces.end())
+        throw std::runtime_error("no such setting: " + title);
+
+    return MockSettingInterface::MockFromInterface(*it);
+}
+
 MockSettingInterface* MockSettingInterface::MockFromInterface(AnalyzerSettingInterface *iface)
 {
     return static_cast<InterfaceDataExtractor*>(iface)->mockData();
+}
+
+void MockSettingInterface::SetNumberedListIndexByLabel(const std::string &name)
+{
+    if (mTypeId != INTERFACE_NUMBER_LIST)
+        throw std::runtime_error("SetNumberedListIndexByLabel: not a number list");
+
+    auto it = std::find_if(mNamedValueList.begin(), mNamedValueList.end(),
+                  [name](const NamedValue& nv) { return name == nv.name; });
+    if (it == mNamedValueList.end()) {
+        throw std::runtime_error("No value in list with name: " + name);
+    }
+
+    mValue = std::distance(mNamedValueList.begin(), it);
 }
 
 } // of namespace AnalyzerTest
@@ -128,6 +157,12 @@ AnalyzerInterfaceTypeId AnalyzerSettingInterface::GetType()
 {
     D_PTR();
     return d->mTypeId;
+}
+
+const char *AnalyzerSettingInterface::GetTitle()
+{
+    D_PTR();
+    return d->mTitle.c_str();
 }
 
 void AnalyzerSettingInterface::SetTitleAndTooltip(const char *title, const char *tooltip)

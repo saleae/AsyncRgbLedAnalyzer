@@ -53,6 +53,12 @@ void Instance::RunAnalyzerWorker(int timeoutSec)
 
     // setup a watch-dog to timeout this
 
+    // TODO - test harness should be told if the analyser is using
+    // the Analyser2 interface (maybe they all do in practice?)
+    auto analyzer2 = dynamic_cast<Analyzer2*>(mAnalyzerInstance.get());
+    if (analyzer2) {
+        analyzer2->SetupResults();
+    }
 
     mAnalyzerInstance->WorkerThread();
 

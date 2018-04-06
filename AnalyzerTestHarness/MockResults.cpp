@@ -1,13 +1,15 @@
 #include "MockResults.h"
 
 #include <cassert>
+#include <iostream> // REMOVE ME
 
 #define D_PTR() \
     AnalyzerTest::MockResultData* d = reinterpret_cast<AnalyzerTest::MockResultData*>(mData);
 
 AnalyzerResults::AnalyzerResults()
 {
-
+    auto mock = new AnalyzerTest::MockResultData;
+    mData = reinterpret_cast<AnalyzerResultsData*>(mock);
 }
 
 AnalyzerResults::~AnalyzerResults()
@@ -90,10 +92,9 @@ void AnalyzerResults::AddChannelBubblesWillAppearOn( const Channel& channel )
 
 bool AnalyzerResults::UpdateExportProgressAndCheckForCancel( U64 completed_frames, U64 total_frames )
 {
-
+    D_PTR();
+    return d->mCancelled;
 }
-
-
 
 //////////////////////////////////////////////////////////////////////////////
 
@@ -111,9 +112,8 @@ Frame::~Frame()
 
 bool Frame::HasFlag( U8 flag )
 {
-
+    return mFlags & flag;
 }
-
 
 namespace {
 
@@ -161,6 +161,21 @@ void MockResultData::AddString(const std::string &s)
 {
     mStrings.push_back({CurrentFrame(), s});
 }
+
+void MockResultData::SetCancelled(bool cancelled)
+{
+    mCancelled = cancelled;
+}
+
+auto MockResultData::GetFrameRangeForPacket(U64 packetIndex) const -> FrameRange
+{
+    assert(packetIndex < mPacketStartFrames.size());
+    U64 endFrame = (packetIndex < (mPacketStartFrames.size() - 1) ?
+                        mPacketStartFrames.at(packetIndex + 1) - 1 : // frame preceeding start of next packet
+                        mFrames.size() - 1); // final valid frame
+    return std::make_pair(mPacketStartFrames.at(packetIndex), endFrame);
+}
+
 
 } // of namespace
 

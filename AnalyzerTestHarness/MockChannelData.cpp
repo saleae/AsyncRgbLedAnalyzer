@@ -4,6 +4,9 @@
 #include <algorithm>
 #include <exception>
 
+// REMOVE ME
+#include <iostream>
+
 namespace AnalyzerTest
 {
 
@@ -22,6 +25,9 @@ MockChannelData::MockChannelData() :
 void MockChannelData::TestSetInitialBitState(BitState bs)
 {
     mInitialState = bs;
+    // insert a dummy sample before the real data, so that
+    // the logic in AdvanceToSample is simpler
+    mTransitions.push_back(0);
 }
 
 void MockChannelData::TestAppendTransitionAfterSamples(U64 sampleCount)
@@ -51,15 +57,19 @@ U32 MockChannelData::AdvanceToSample(U64 sample)
     if (sample == mCurrentSample)
         return 0;
 
-    auto cur = std::lower_bound(mTransitions.begin(), mTransitions.end(), mCurrentSample);
+    auto cur = std::upper_bound(mTransitions.begin(), mTransitions.end(), mCurrentSample) - 1;
     if (cur == mTransitions.end()) {
         throw std::runtime_error("AdvanceToSample: out of samples");
     }
 
-    auto it = std::lower_bound(mTransitions.begin(), mTransitions.end(), sample);
+    assert (*cur <= mCurrentSample);
+
+    auto it = std::upper_bound(mTransitions.begin(), mTransitions.end(), sample) - 1;
     if (it == mTransitions.end()) {
         throw std::runtime_error("AdvanceToSample: out of samples");
     }
+
+    assert (*it <= sample);
 
     if (it == cur) {
         // no transitions between current and requested sample
@@ -68,14 +78,9 @@ U32 MockChannelData::AdvanceToSample(U64 sample)
         return 0;
     }
 
-    if (*it > sample) {
-        // we didn't match exactly, so take the transition preceeding
-        --it;
-    }
-
     // count the distance between the two
     U32 transitionCount = std::distance(cur, it);
-    bool oddTransitionCount = transitionCount % 1;
+    bool oddTransitionCount = transitionCount % 2;
     if (oddTransitionCount) {
         mCurrentState = InvertBitState(mCurrentState);
     }
@@ -147,6 +152,7 @@ void AnalyzerChannelData::AdvanceToNextEdge()
 {
     D_PTR();
     U64 nextEdge = GetSampleOfNextEdge();
+ //   std::cerr << "AdvNE: advanced to " << nextEdge << " from " << d->mCurrentSample << std::endl;
     d->mCurrentState = AnalyzerTest::InvertBitState(d->mCurrentState);
     d->mCurrentSample = nextEdge;
 }
@@ -156,14 +162,14 @@ U64 AnalyzerChannelData::GetSampleOfNextEdge()
     D_PTR();
     auto next = std::lower_bound(d->mTransitions.begin(), d->mTransitions.end(), d->mCurrentSample);
     if (next == d->mTransitions.end()) {
-        throw std::runtime_error("AdvanceToNextEdge: out of samples");
+        throw std::runtime_error("GetSampleOfNextEdge: out of samples");
     }
 
     if (*next == d->mCurrentSample) {
         // if we're exactly on the sample, advance
         ++next;
         if (next == d->mTransitions.end()) {
-            throw std::runtime_error("AdvanceToNextEdge: out of samples");
+            throw std::runtime_error("GetSampleOfNextEdge: out of samples");
         }
     }
 
