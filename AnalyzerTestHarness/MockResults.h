@@ -39,6 +39,10 @@ public:
     typedef std::pair<U64, U64> FrameRange;
     FrameRange GetFrameRangeForPacket(U64 packetIndex) const;
 
+    U64 TotalFrameCount() const;
+    U64 TotalPacketCount() const;
+    U64 TotalCommitCount() const;
+
 private:
     friend ::AnalyzerResults;
 

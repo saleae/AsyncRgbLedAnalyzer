@@ -12,6 +12,21 @@ class MockChannelData;
 class SimulatedChannel;
 class MockSettings;
 
+// signalling exceptions used to exit the worker thread in various
+// siutations.
+
+class OutOfDataException : public std::exception
+{
+public:
+    OutOfDataException(); // non-inline method to pin the class
+};
+
+class CancellationException : public std::exception
+{
+public:
+    CancellationException();
+};
+
 class Instance
 {
 public:
@@ -24,7 +39,13 @@ public:
     void SetSampleRate(U64 sample_rate_hz);
     U64 GetSampleRate() const;
 
-    void RunAnalyzerWorker(int timeoutSec = 0);
+    enum RunResult {
+        WorkerRanOutOfData = 0,
+        WorkerTimeout,
+        WorkerError
+    };
+
+    RunResult RunAnalyzerWorker(int timeoutSec = 0);
 
     AnalyzerResults* GetResults();
 
@@ -34,9 +55,16 @@ public:
 
     AnalyzerSettings* GetSettings();
 
+
+
+    /**
+     * @brief CheckCancellation - hook for MockChannelData to check if
+     * processing should be abandoned
+     * @return
+     */
+    bool CheckCancellation() const;
 private:
     std::unique_ptr<Analyzer> mAnalyzerInstance;
-
     std::vector<SimulationChannelDescriptor*> mSimulatedChannels;
 };
 

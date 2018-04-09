@@ -102,7 +102,13 @@ Frame::Frame()
 {
 }
 
-Frame::Frame(const Frame& f)
+Frame::Frame(const Frame& f) :
+    mStartingSampleInclusive(f.mStartingSampleInclusive),
+    mEndingSampleInclusive(f.mEndingSampleInclusive),
+    mData1(f.mData1),
+    mData2(f.mData2),
+    mType(f.mType),
+    mFlags(f.mFlags)
 {
 }
 
@@ -174,6 +180,21 @@ auto MockResultData::GetFrameRangeForPacket(U64 packetIndex) const -> FrameRange
                         mPacketStartFrames.at(packetIndex + 1) - 1 : // frame preceeding start of next packet
                         mFrames.size() - 1); // final valid frame
     return std::make_pair(mPacketStartFrames.at(packetIndex), endFrame);
+}
+
+U64 MockResultData::TotalFrameCount() const
+{
+    return mFrames.size();
+}
+
+U64 MockResultData::TotalPacketCount() const
+{
+    return mPacketStartFrames.size();
+}
+
+U64 MockResultData::TotalCommitCount() const
+{
+    return mCommitFrames.size();
 }
 
 

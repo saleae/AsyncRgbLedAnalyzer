@@ -7,8 +7,32 @@
 #include <cassert>
 #include <iostream>
 
+// output operators for the test macro
+std::ostream& operator<<(std::ostream& out, const AnalyzerTest::MockResultData::FrameRange& range)
+{
+    out << "Frames " << range.first << ":" << range.second;
+    return out;
+}
+
+std::ostream& operator<<(std::ostream& out, const Channel& chan)
+{
+    out << "Channel{" << chan.mDeviceId << "/" << chan.mChannelIndex << " ";
+    if (chan.mDataType ==ANALOG_CHANNEL) {
+        out << "A}";
+    } else {
+        out << "D}";
+    }
+    return out;
+}
+
+
 #define TEST_VERIFY_EQ(a, b) \
-    assert(a == b)
+    if ( !((a) == (b)) )  { \
+        std::cerr << "failed: " << #a << " == " << #b << std::endl; \
+       std::cerr << "\tgot '" << (a) << "' and '" << (b) << "'" << std::endl; \
+        std::cerr << "\tat " << __FILE__ << ":" << __LINE__ << std::endl; \
+        exit(1); \
+    }
 
 #define TEST_VERIFY_EQ_CHARS(a, b) \
     assert(!strcmp(a, b))
@@ -62,6 +86,16 @@ std::vector<double> ws2811_test_rgb_and_reset(U8 red, U8 green, U8 blue, double 
     return r;
 }
 
+U64 rgb_triple_as_u64(U16 red, U16 green, U16 blue)
+{
+    U64 result = 0;
+    U16* channels = reinterpret_cast<U16*>(&result);
+    channels[0] = red;
+    channels[1] = green;
+    channels[2] = blue;
+    return result;
+}
+
 void setupStandardTestSettings(Instance& plugin, const std::string& controllerName)
 {
     auto mockSettings = MockSettings::MockFromSettings(plugin.GetSettings());
@@ -82,7 +116,7 @@ void testFunction1()
 
     pluginInstance.SetSampleRate(20000000);
 
-    MockChannelData channelData;
+    MockChannelData channelData(&pluginInstance);
     channelData.TestSetInitialBitState(BIT_LOW);
     channelData.TestAppendIntervals(pluginInstance.GetSampleRate(), 0.0,
                                     55_us,
@@ -97,23 +131,30 @@ void testFunction1()
                                     );
 
     pluginInstance.SetChannelData(TEST_CHANNEL, &channelData);
-    pluginInstance.RunAnalyzerWorker();
+    auto rr= pluginInstance.RunAnalyzerWorker();
+    // ensure we consumed all the data
+    TEST_VERIFY_EQ(rr, Instance::WorkerRanOutOfData);
 
     // validation
     auto results = MockResultData::MockFromResults(pluginInstance.GetResults());
 
-    TEST_VERIFY_EQ(results->GetFrame(2).mData1, 1234);
+    TEST_VERIFY_EQ(results->TotalFrameCount(), 6);
+    TEST_VERIFY_EQ(results->TotalCommitCount(), 8) // commit per frame and per packet right now;
+    TEST_VERIFY_EQ(results->TotalPacketCount(), 3); // FIXME - analyzer is appending a final packet
 
-    TEST_VERIFY_EQ(results->GetFrame(5).mData1, 1234);
-
-// verify LED indices between reset pulses
+    // verify LED indices between reset pulses
     TEST_VERIFY_EQ(results->GetFrame(2).mData2, 2);
     TEST_VERIFY_EQ(results->GetFrame(3).mData2, 0);
     TEST_VERIFY_EQ(results->GetFrame(5).mData2, 2);
 
+    TEST_VERIFY_EQ(results->GetFrame(2).mData1, rgb_triple_as_u64(0x66, 0x77, 0x88));
+    TEST_VERIFY_EQ(results->GetFrame(4).mData1, rgb_triple_as_u64(0x22, 0x33, 0x44));
+
     // verify packets
     TEST_VERIFY_EQ(results->GetFrameRangeForPacket(0), MockResultData::FrameRange(0, 2));
     TEST_VERIFY_EQ(results->GetFrameRangeForPacket(1), MockResultData::FrameRange(3, 5));
+
+    std::cout << "passed test 1 ok" << std::endl;
 }
 
 void testSettings()

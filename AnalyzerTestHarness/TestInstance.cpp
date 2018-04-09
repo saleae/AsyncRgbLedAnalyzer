@@ -4,6 +4,7 @@
 #include "MockSimulatedChannelDescriptor.h"
 
 #include <cassert>
+#include <iostream>
 
 extern "C" {
     Analyzer* __cdecl CreateAnalyzer( );
@@ -47,7 +48,7 @@ U64 Instance::GetSampleRate() const
     return GetDataFromAnalyzer(mAnalyzerInstance.get())->sampleRateHz;
 }
 
-void Instance::RunAnalyzerWorker(int timeoutSec)
+auto Instance::RunAnalyzerWorker(int timeoutSec) -> RunResult
 {
     assert(mAnalyzerInstance);
 
@@ -60,8 +61,21 @@ void Instance::RunAnalyzerWorker(int timeoutSec)
         analyzer2->SetupResults();
     }
 
-    mAnalyzerInstance->WorkerThread();
+    RunResult result = WorkerError;
 
+    try {
+        mAnalyzerInstance->WorkerThread();
+    } catch (OutOfDataException& ode) {
+        // this is 'normal' termination for a worker thread
+        result = WorkerRanOutOfData;
+    } catch (CancellationException& ce) {
+        result = WorkerTimeout;
+    } catch (std::exception& e) {
+        std::cerr << "Worker thread raised exception:" << e.what() << std::endl;
+        result = WorkerError;
+    }
+
+    return result;
 }
 
 
@@ -99,6 +113,21 @@ AnalyzerSettings *Instance::GetSettings()
     return GetDataFromAnalyzer(mAnalyzerInstance.get())->settings;
 }
 
+bool Instance::CheckCancellation() const
+{
+
+    return false;
+}
+
+OutOfDataException::OutOfDataException()
+{
+
+}
+
+CancellationException::CancellationException()
+{
+
+}
 
 } // of namespace AnalyzerTest
 

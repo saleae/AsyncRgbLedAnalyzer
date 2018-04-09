@@ -16,10 +16,11 @@ BitState InvertBitState(BitState b)
     return BIT_HIGH;
 }
 
-MockChannelData::MockChannelData() :
-    AnalyzerChannelData(nullptr)
+MockChannelData::MockChannelData(Instance* plugin) :
+    AnalyzerChannelData(nullptr),
+    mInstance(plugin)
 {
-
+    assert(plugin);
 }
 
 void MockChannelData::TestSetInitialBitState(BitState bs)
@@ -59,14 +60,14 @@ U32 MockChannelData::AdvanceToSample(U64 sample)
 
     auto cur = std::upper_bound(mTransitions.begin(), mTransitions.end(), mCurrentSample) - 1;
     if (cur == mTransitions.end()) {
-        throw std::runtime_error("AdvanceToSample: out of samples");
+        throw OutOfDataException();
     }
 
     assert (*cur <= mCurrentSample);
 
     auto it = std::upper_bound(mTransitions.begin(), mTransitions.end(), sample) - 1;
     if (it == mTransitions.end()) {
-        throw std::runtime_error("AdvanceToSample: out of samples");
+        throw OutOfDataException();
     }
 
     assert (*it <= sample);
@@ -105,6 +106,13 @@ double MockChannelData::InnerAppendIntervals(U64 sampleRateHz, double startingEr
     }
 
     return currentError;
+}
+
+void MockChannelData::CheckForCancellation() const
+{
+    if (mInstance->CheckCancellation()) {
+        throw CancellationException{};
+    }
 }
 
 } // of namespace AnalyzerTest
@@ -162,14 +170,14 @@ U64 AnalyzerChannelData::GetSampleOfNextEdge()
     D_PTR();
     auto next = std::lower_bound(d->mTransitions.begin(), d->mTransitions.end(), d->mCurrentSample);
     if (next == d->mTransitions.end()) {
-        throw std::runtime_error("GetSampleOfNextEdge: out of samples");
+        throw AnalyzerTest::OutOfDataException();
     }
 
     if (*next == d->mCurrentSample) {
         // if we're exactly on the sample, advance
         ++next;
         if (next == d->mTransitions.end()) {
-            throw std::runtime_error("GetSampleOfNextEdge: out of samples");
+            throw AnalyzerTest::OutOfDataException();
         }
     }
 

@@ -1,7 +1,10 @@
 #ifndef ANALYZER_TEST_MOCK_CHANNEL_DATA
 #define ANALYZER_TEST_MOCK_CHANNEL_DATA
 
+#include <exception>
+
 #include "AnalyzerChannelData.h"
+#include "TestInstance.h"
 
 namespace AnalyzerTest
 {
@@ -9,7 +12,7 @@ namespace AnalyzerTest
 class MockChannelData : public AnalyzerChannelData
 {
 public:
-    MockChannelData();
+    MockChannelData(Instance* pluginInstance);
 
     // test interface
 
@@ -60,6 +63,12 @@ private:
      */
     double InnerAppendIntervals(U64 sampleRateHz, double startingError, const std::vector<double>& intervals);
 
+    /**
+     * @brief CheckForCancellation - check the plugin instance for the cancellation
+     *  flag, and throw CancellationException in that situation ,to get us out
+     * out of analysis worker thread
+     */
+    void CheckForCancellation() const;
 
     BitState mCurrentState = BIT_LOW;
     U64 mCurrentSample = 0;
@@ -68,6 +77,8 @@ private:
             ;
     // absolute sample numbers of transitions
     std::vector<U64> mTransitions;
+
+    const Instance* mInstance = nullptr;
 };
 
 
