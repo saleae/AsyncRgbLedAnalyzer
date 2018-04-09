@@ -69,6 +69,9 @@ void AnalyzerResults::AddResultString( const char* str1, const char* str2, const
     std::string s(str1);
     if (str2) s += str2;
     if (str3) s += str3;
+    if (str4) s += str4;
+    if (str5) s += str5;
+    if (str6) s += str6;
 
     D_PTR();
     d->AddString(s);
@@ -195,6 +198,16 @@ U64 MockResultData::TotalPacketCount() const
 U64 MockResultData::TotalCommitCount() const
 {
     return mCommitFrames.size();
+}
+
+U32 MockResultData::TotalStringCount() const
+{
+    return mStrings.size();
+}
+
+std::string MockResultData::GetString(U32 index) const
+{
+    return mStrings.at(index).string;
 }
 
 

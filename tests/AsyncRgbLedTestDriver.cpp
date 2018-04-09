@@ -152,7 +152,18 @@ void testBasicAnalysis()
     TEST_VERIFY_EQ(results->GetFrameRangeForPacket(0), MockResultData::FrameRange(0, 2));
     TEST_VERIFY_EQ(results->GetFrameRangeForPacket(1), MockResultData::FrameRange(3, 5));
 
-    std::cout << "passed test 1 ok" << std::endl;
+    // bubble text generation
+
+    pluginInstance.GenerateBubbleText(2, TEST_CHANNEL, Decimal);
+    TEST_VERIFY_EQ(results->TotalStringCount(), 4);
+#if 0
+    TEST_VERIFY_EQ(results->GetString(0), "LED 2 Red: 102 Green: 119 Blue: 136 #667788")
+    TEST_VERIFY_EQ(results->GetString(1), "2 R: 102 G: 119 B: 136 #667788")
+#endif
+    TEST_VERIFY_EQ(results->GetString(2), "(2) #667788")
+    TEST_VERIFY_EQ(results->GetString(3), "#667788")
+
+    std::cout << "passed test basic analysis ok" << std::endl;
 }
 
 void testSettings()

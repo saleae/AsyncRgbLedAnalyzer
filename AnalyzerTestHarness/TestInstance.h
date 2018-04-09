@@ -55,7 +55,7 @@ public:
 
     AnalyzerSettings* GetSettings();
 
-
+    void GenerateBubbleText( U64 frame_index, Channel channel, DisplayBase display_base );
 
     /**
      * @brief CheckCancellation - hook for MockChannelData to check if

@@ -1,5 +1,6 @@
 #include "TestInstance.h"
 
+#include "AnalyzerResults.h"
 #include "TestAnalyzerData.h"
 #include "MockSimulatedChannelDescriptor.h"
 
@@ -111,6 +112,13 @@ SimulatedChannel *Instance::GetSimulationChannel(const Channel &chan)
 AnalyzerSettings *Instance::GetSettings()
 {
     return GetDataFromAnalyzer(mAnalyzerInstance.get())->settings;
+}
+
+void Instance::GenerateBubbleText(U64 frame_index, Channel channel, DisplayBase display_base)
+{
+    auto results = GetResults();
+    results->ClearResultStrings();
+    results->GenerateBubbleText(frame_index, channel, display_base);
 }
 
 bool Instance::CheckCancellation() const

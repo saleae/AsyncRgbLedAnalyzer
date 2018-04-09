@@ -60,6 +60,7 @@ void AsyncRgbLedAnalyzerResults::GenerateBubbleText( U64 frame_index, Channel& c
 
     // example: (13) #1A2B3C
     ::snprintf( buf, sizeof( buf ), "(%d) %s", ledIndex, webBuf );
+    AddResultString( buf );
 
     // example: #1A2B3C
     AddResultString( webBuf );

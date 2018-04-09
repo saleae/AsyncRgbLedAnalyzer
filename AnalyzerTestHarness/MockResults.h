@@ -43,6 +43,8 @@ public:
     U64 TotalPacketCount() const;
     U64 TotalCommitCount() const;
 
+    U32 TotalStringCount() const;
+    std::string GetString(U32 index) const;
 private:
     friend ::AnalyzerResults;
 
