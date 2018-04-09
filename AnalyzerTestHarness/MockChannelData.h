@@ -53,6 +53,8 @@ public:
     void ResetCurrentSample(U64 sampleNumber = 0);
 
     U32 AdvanceToSample(U64 sample); // returns number of times the value changed
+
+    void DumpTestData(double sampleRateMhz);
 private:
     friend class ::AnalyzerChannelData;
     /**

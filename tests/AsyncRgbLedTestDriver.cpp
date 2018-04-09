@@ -107,13 +107,11 @@ void setupStandardTestSettings(Instance& plugin, const std::string& controllerNa
     plugin.GetSettings()->SetSettingsFromInterfaces();
 }
 
-void testFunction1()
+void testBasicAnalysis()
 {
     Instance pluginInstance;
     pluginInstance.CreatePlugin("Addressable LEDs (Async)");
-
     setupStandardTestSettings(pluginInstance, "WS2811");
-
     pluginInstance.SetSampleRate(20000000);
 
     MockChannelData channelData(&pluginInstance);
@@ -192,11 +190,111 @@ void testLoadSettings()
     AnalyzerSettings* settings = pluginInstance.GetSettings();
 }
 
-void testFunction2()
+void testSynchronizeMidData()
 {
-    AnalyzerTest::Instance pluginInstance;
+    Instance pluginInstance;
     pluginInstance.CreatePlugin("Addressable LEDs (Async)");
-    
+    setupStandardTestSettings(pluginInstance, "WS2811");
+    pluginInstance.SetSampleRate(20000000);
+
+    MockChannelData channelData(&pluginInstance);
+    channelData.TestSetInitialBitState(BIT_LOW);
+    channelData.TestAppendIntervals(pluginInstance.GetSampleRate(), 0.0,
+                                    50_us,
+                                    // first packet
+                                    ws2811_test_rgb(0xaa, 0xbb, 0xcc),
+                                    ws2811_test_rgb(0x22, 0x33, 0x44),
+                                    ws2811_test_rgb_and_reset(0x11, 0x22, 0x33, 55_us),
+                                    // second packet
+                                    ws2811_test_rgb(0x44, 0x55, 0x66),
+                                    ws2811_test_rgb(0x22, 0x33, 0x44),
+                                    ws2811_test_rgb_and_reset(0x66, 0x77, 0x88, 55_us),
+                                    // third packet
+                                    ws2811_test_rgb(0xaa, 0xbb, 0xcc),
+                                    ws2811_test_rgb(0x99, 0x88, 0x77),
+                                    ws2811_test_rgb_and_reset(0x66, 0x77, 0x88, 55_us)
+                                    );
+
+
+    // advance part-way through the first packet, so the analyzer has to sync
+    // to the next reset pulse
+    channelData.ResetCurrentSample(1000);
+    pluginInstance.SetChannelData(TEST_CHANNEL, &channelData);
+    auto rr= pluginInstance.RunAnalyzerWorker();
+    // ensure we consumed all the data
+    TEST_VERIFY_EQ(rr, Instance::WorkerRanOutOfData);
+
+    // validation
+    auto results = MockResultData::MockFromResults(pluginInstance.GetResults());
+
+    TEST_VERIFY_EQ(results->TotalFrameCount(), 6);
+    TEST_VERIFY_EQ(results->TotalPacketCount(), 3); // FIXME, analyzer is appending an empty packet
+
+    // verify LED indices between reset pulses
+    TEST_VERIFY_EQ(results->GetFrame(1).mData2, 1);
+    TEST_VERIFY_EQ(results->GetFrame(3).mData2, 0);
+
+    TEST_VERIFY_EQ(results->GetFrame(0).mData1, rgb_triple_as_u64(0x44, 0x55, 0x66));
+    TEST_VERIFY_EQ(results->GetFrame(4).mData1, rgb_triple_as_u64(0x99, 0x88, 0x77));
+
+    // verify packets
+    TEST_VERIFY_EQ(results->GetFrameRangeForPacket(0), MockResultData::FrameRange(0, 2));
+    TEST_VERIFY_EQ(results->GetFrameRangeForPacket(1), MockResultData::FrameRange(3, 5));
+
+    std::cout << "passed test: synchornize mid-stream" << std::endl;
+}
+
+void testResynchronizeAfterBadData()
+{
+    Instance pluginInstance;
+    pluginInstance.CreatePlugin("Addressable LEDs (Async)");
+    setupStandardTestSettings(pluginInstance, "WS2811");
+    pluginInstance.SetSampleRate(20000000);
+
+    MockChannelData channelData(&pluginInstance);
+    channelData.TestSetInitialBitState(BIT_LOW);
+    channelData.TestAppendIntervals(pluginInstance.GetSampleRate(), 0.0,
+                                    50_us,
+                                    // first packet
+                                    ws2811_test_rgb(0xaa, 0xbb, 0xcc),
+                                    ws2811_test_rgb(0x22, 0x33, 0x44),
+                                    ws2811_test_rgb_and_reset(0x11, 0x22, 0x33, 55_us),
+                                    // second packet (mangled!)
+                                    ws2811_test_rgb(0x44, 0x55, 0x66),
+                                    // garbage data
+                                    150_ns, 1000_ns, 300_ns, 2000_ns, 400_ns, 3000_ns,
+                                    ws2811_test_rgb_and_reset(0x66, 0x77, 0x88, 55_us),
+                                    // third packet
+                                    ws2811_test_rgb(0x11, 0x33, 0x22),
+                                    ws2811_test_rgb(0x99, 0x88, 0x77),
+                                    ws2811_test_rgb_and_reset(0x66, 0x77, 0x88, 55_us)
+                                    );
+
+
+    pluginInstance.SetChannelData(TEST_CHANNEL, &channelData);
+    auto rr= pluginInstance.RunAnalyzerWorker();
+    // ensure we consumed all the data
+    TEST_VERIFY_EQ(rr, Instance::WorkerRanOutOfData);
+
+    // validation
+    auto results = MockResultData::MockFromResults(pluginInstance.GetResults());
+
+    TEST_VERIFY_EQ(results->TotalFrameCount(), 7);
+    TEST_VERIFY_EQ(results->TotalPacketCount(), 4); // FIXME, analyzer is appending an empty packet
+
+    // verify LED indices between reset pulses
+    TEST_VERIFY_EQ(results->GetFrame(1).mData2, 1);
+    TEST_VERIFY_EQ(results->GetFrame(4).mData2, 0);
+
+    TEST_VERIFY_EQ(results->GetFrame(0).mData1, rgb_triple_as_u64(0xaa, 0xbb, 0xcc));
+    TEST_VERIFY_EQ(results->GetFrame(4).mData1, rgb_triple_as_u64(0x11, 0x33, 0x22));
+
+    // verify packets
+    TEST_VERIFY_EQ(results->GetFrameRangeForPacket(0), MockResultData::FrameRange(0, 2));
+    TEST_VERIFY_EQ(results->GetFrameRangeForPacket(1), MockResultData::FrameRange(3, 3));
+    TEST_VERIFY_EQ(results->GetFrameRangeForPacket(2), MockResultData::FrameRange(4, 6));
+
+    std::cout << "passed test: re-synchronize after bad data mid-stream" << std::endl;
 }
 
 void testSimulationData1()
@@ -216,9 +314,9 @@ int main(int argc, char* argv[])
 {
     testSettings();
 
-    testFunction1();
-
-    testFunction2();
+    testBasicAnalysis();
+    testSynchronizeMidData();
+    testResynchronizeAfterBadData();
 
     testSimulationData1();
 

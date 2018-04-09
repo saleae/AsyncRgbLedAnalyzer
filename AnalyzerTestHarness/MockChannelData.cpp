@@ -115,6 +115,21 @@ void MockChannelData::CheckForCancellation() const
     }
 }
 
+void MockChannelData::DumpTestData(double sampleRateMhz)
+{
+    double sampleDuration = 1.0 / sampleRateMhz;
+    U64 previous = 0;
+    for (int i=0; i<mTransitions.size(); ++i) {
+        U64 interval = mTransitions.at(i) - previous;
+        std::cout << interval << " " << interval * sampleDuration << std::endl;
+        previous = mTransitions.at(i);
+
+        if ((i % 48 )== 0) {
+            std::cout << "===================" << std::endl;
+        }
+    }
+}
+
 } // of namespace AnalyzerTest
 
 
