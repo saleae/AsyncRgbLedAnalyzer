@@ -71,6 +71,11 @@ double SimulatedChannel::GetSampleDuration() const
     return 1.0 / mSampleRateHz;
 }
 
+U64 SimulatedChannel::GetCurrentSample() const
+{
+    return mCurrentSample;
+}
+
 } // of namespace AnalyzerTest
 
 #define D_PTR() \

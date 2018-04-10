@@ -29,6 +29,7 @@ public:
 
     double GetSampleDuration() const;
 
+    U64 GetCurrentSample() const;
 private:
     friend ::SimulationChannelDescriptor;
 

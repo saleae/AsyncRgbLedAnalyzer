@@ -343,6 +343,62 @@ void verifyReset(SimulatedChannel* sim_chan,
     TEST_EQ_EPSILON(reset_time, sim_chan->GetDurationToNextTransition(), sim_chan->GetSampleDuration());
 }
 
+/**
+ * @brief canClassify - check if a pulse-pair matches the given timing spec
+ * @param timing - nominal bit timings
+ * @param hiSec
+ * @param lowSec
+ * @param epsilon
+ * @return
+ */
+bool canClassify(const BitTiming& timing, double hiSec, double lowSec, double epsilon)
+{
+    return std::fabs(timing.highSec - hiSec) < epsilon &&
+            std::fabs(timing.lowSec - lowSec) < epsilon;
+}
+
+bool classifyBit(const std::vector<ModeTiming>& timingData,
+                 double hiSec, double lowSec, double epsilon,
+                 BitState* state, int* modeIndex)
+{
+    int i = 0;
+    for (auto mode : timingData) {
+        if (canClassify(mode.oneTiming, hiSec, lowSec, epsilon)) {
+            *state = BIT_HIGH;
+            *modeIndex = i;
+            return true;
+        }
+
+        if (canClassify(mode.zeroTiming, hiSec, lowSec, epsilon)) {
+            *state = BIT_HIGH;
+            *modeIndex = i;
+            return true;
+        }
+
+        ++i;
+    }
+
+    std::cerr << "classifciation failure:" << hiSec << " / " << lowSec << std::endl;
+    return false;
+}
+
+bool isResetPulse(double resetTime, double lowTime, double epsilon)
+{
+    return lowTime >= (resetTime - epsilon);
+}
+
+double fixupLowPulseDurationForReset(const ModeTiming& timing, double hiPulseSec, double epsilon)
+{
+    if (std::fabs(timing.zeroTiming.highSec - hiPulseSec) < epsilon)
+        return timing.zeroTiming.lowSec;
+
+    if (std::fabs(timing.oneTiming.highSec - hiPulseSec) < epsilon)
+        return timing.oneTiming.lowSec;
+
+    std::cerr << "fixupLowPulseDurationForReset: couldn't classify high pulse " << hiPulseSec << std::endl;
+    exit(-1);
+}
+
 void parseSimulationData(SimulatedChannel* sim_chan,
                          double reset_time,
                          const std::vector<ModeTiming>& timingData)
@@ -350,7 +406,61 @@ void parseSimulationData(SimulatedChannel* sim_chan,
     // assume simulation starts with a reset
     sim_chan->ResetToStart();
     TEST_VERIFY(sim_chan->GetCurrentState() ==  BIT_LOW);
+    const double epsilon = sim_chan->GetSampleDuration();
+
     verifyReset(sim_chan, reset_time);
+    sim_chan->AdvanceToNextTransition();
+    int modeIndex = -1; // no mode selected
+    int bitCount = 0;
+
+    int channel = 0;
+    U16 channelData[4] = {0,0,0,0};
+    const int channelDataSize = 8;
+
+    for ( ; ; ) {
+        bool sawReset = false;
+        double hiPulseSec = sim_chan->GetDurationToNextTransition();
+        if (!sim_chan->AdvanceToNextTransition()) {
+            break;
+        }
+
+        double lowPulseSec = sim_chan->GetDurationToNextTransition();
+        if (isResetPulse(reset_time, lowPulseSec, epsilon)) {
+            TEST_VERIFY(modeIndex >= 0);
+            // fudge the length back to something sensible so that classifyBit doesn't
+            // need to deal with reset pulses
+            lowPulseSec = fixupLowPulseDurationForReset(timingData.at(modeIndex),
+                                                        hiPulseSec, epsilon);
+
+            // reset the mode detection, since the simulator might switch
+            // to or from high-speed mode on a reset
+            modeIndex = -1;
+            sawReset = true;
+        }
+
+        BitState bs;
+        bool ok = classifyBit(timingData, hiPulseSec, lowPulseSec, epsilon, &bs, &modeIndex);
+        if (!ok) {
+            std::cerr << "failed to classify at " << sim_chan->GetCurrentSample() << std::endl;
+            break;
+        } else {
+            // shift and add the bit into channelData
+            channelData[channel] =  (channelData[channel] << 1) | bs;
+            if (++bitCount == channelDataSize) {
+                bitCount = 0;
+                ++channel;
+
+                if (channel == 3) {
+                    memset(&channelData, 0, sizeof(channelData));
+                    channel = 0;
+                }
+            }
+        }
+
+        if (!sim_chan->AdvanceToNextTransition()) {
+            break;
+        }
+    } // of pulse detection loop
 }
 
 void testSimulationData1()
@@ -360,19 +470,22 @@ void testSimulationData1()
     pluginInstance.CreatePlugin("Addressable LEDs (Async)");
     setupStandardTestSettings(pluginInstance, "WS2811");
 
+    const U64 numSamplesToGenerate = 1000000;
     // use 20Mhz mode to generate mixture of low and high-speed samples
-    pluginInstance.RunSimulation(10000, 20000000);
-    auto  mockSimulationData = pluginInstance.GetSimulationChannel(TEST_CHANNEL);
-    assert(mockSimulationData);
-
+    pluginInstance.RunSimulation(numSamplesToGenerate, 20000000);
+    auto mockSimulationData = pluginInstance.GetSimulationChannel(TEST_CHANNEL);
+    TEST_VERIFY(mockSimulationData);
     TEST_VERIFY(mockSimulationData->GetSampleCount() >= 10000);
-
 
     // verify the generated simulation data
     parseSimulationData(mockSimulationData, 50_us, {
                             ModeTiming{ {500_ns, 2000_ns}, {1200_ns, 1300_ns} },
                             ModeTiming{ {250_ns, 1000_ns}, {600_ns, 650_ns} }
                         });
+
+    TEST_VERIFY(mockSimulationData->GetCurrentSample() >= numSamplesToGenerate);
+
+    std::cout << "did parse simulation data" << std::endl;
 }
 
 int main(int argc, char* argv[])
