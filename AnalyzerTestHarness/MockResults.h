@@ -45,6 +45,10 @@ public:
 
     U32 TotalStringCount() const;
     std::string GetString(U32 index) const;
+
+    U32 TotalTabularTextCount() const;
+    std::string GetTabularText(U32 index) const;
+
 private:
     friend ::AnalyzerResults;
 
@@ -53,6 +57,7 @@ private:
     std::vector<U64> mCommitFrames;
     std::vector<MarkerInfo> mMarkers;
     std::vector<StringInfo> mStrings;
+    std::vector<std::string> mTabularText;
 
     bool mCancelled = false;
 };

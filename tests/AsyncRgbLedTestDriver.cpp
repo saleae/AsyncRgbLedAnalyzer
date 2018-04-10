@@ -161,6 +161,11 @@ void testBasicAnalysis()
     TEST_VERIFY_EQ(results->GetString(2), "(2) #667788")
     TEST_VERIFY_EQ(results->GetString(3), "#667788")
 
+    // tabular text generation
+     pluginInstance.GenerateTabularText(2, Decimal);
+    TEST_VERIFY_EQ(results->TotalTabularTextCount(), 1);
+    TEST_VERIFY_EQ(results->GetTabularText(0), "[2] 102, 119, 136");
+
     std::cout << "passed test basic analysis ok" << std::endl;
 }
 

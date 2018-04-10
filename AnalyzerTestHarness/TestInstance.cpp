@@ -121,6 +121,12 @@ void Instance::GenerateBubbleText(U64 frame_index, Channel channel, DisplayBase 
     results->GenerateBubbleText(frame_index, channel, display_base);
 }
 
+void Instance::GenerateTabularText(U64 frame_index, DisplayBase display_base)
+{
+    auto results = GetResults();
+    results->GenerateFrameTabularText(frame_index, display_base);
+}
+
 bool Instance::CheckCancellation() const
 {
 

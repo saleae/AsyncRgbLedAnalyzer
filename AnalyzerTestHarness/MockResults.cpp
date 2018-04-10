@@ -79,13 +79,22 @@ void AnalyzerResults::AddResultString( const char* str1, const char* str2, const
 
 void AnalyzerResults::ClearTabularText()
 {
-
+    D_PTR();
+    d->mTabularText.clear();
 }
 
 void AnalyzerResults::AddTabularText(const char* str1, const char* str2, const char* str3 , const char* str4, const char* str5 , const char* str6)
 {
+    // concatenate strings
+    std::string s(str1);
+    if (str2) s += str2;
+    if (str3) s += str3;
+    if (str4) s += str4;
+    if (str5) s += str5;
+    if (str6) s += str6;
 
-
+    D_PTR();
+    d->mTabularText.push_back(s);
 }
 
 void AnalyzerResults::AddChannelBubblesWillAppearOn( const Channel& channel )
@@ -208,6 +217,16 @@ U32 MockResultData::TotalStringCount() const
 std::string MockResultData::GetString(U32 index) const
 {
     return mStrings.at(index).string;
+}
+
+U32 MockResultData::TotalTabularTextCount() const
+{
+    return mTabularText.size();
+}
+
+std::string MockResultData::GetTabularText(U32 index) const
+{
+    return mTabularText.at(index);
 }
 
 

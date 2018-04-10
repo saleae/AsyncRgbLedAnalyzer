@@ -57,6 +57,8 @@ public:
 
     void GenerateBubbleText( U64 frame_index, Channel channel, DisplayBase display_base );
 
+    void GenerateTabularText(U64 frame_index, DisplayBase display_base);
+
     /**
      * @brief CheckCancellation - hook for MockChannelData to check if
      * processing should be abandoned
