@@ -8,6 +8,9 @@ set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
 
 project(AsyncRgbLedAnalyzer)
 
+include (Dart)
+enable_testing()
+
 option(ENABLE_ASTYLE  "Set to ON to enable AStyle formating of the code" ON)
 
 
@@ -52,7 +55,7 @@ add_subdirectory(AnalyzerTestHarness)
 add_executable(AsyncRgbLedTest tests/AsyncRgbLedTestDriver.cpp ${SOURCES})
 target_link_libraries(AsyncRgbLedTest AnalyzerTestHarness)
 
-add_test(AsyncRgbLedTest ${EXECUTABLE_OUTPUT_PATH}/${name})
+add_test(AsyncRgbLedTest ${EXECUTABLE_OUTPUT_PATH}/AsyncRgbLedTest)
 
 #------------------------------------------------------------------------
 # AStyle 
