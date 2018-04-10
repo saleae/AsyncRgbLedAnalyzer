@@ -2,6 +2,8 @@
 #include "AnalyzerSettingInterface.h"
 
 #include <cmath>
+#include <cassert>
+#include <algorithm>
 
 #include "MockSettings.h"
 
@@ -242,6 +244,144 @@ void AnalyzerSettingInterfaceNumberList::AddNumber( double number, const char* s
 {
     D_PTR();
     d->mNamedValueList.push_back({str, number, tooltip});
+}
+
+//////////////////////////////////////////////////////////////////////////////
+
+AnalyzerSettingInterfaceInteger::AnalyzerSettingInterfaceInteger()
+{
+    D_PTR();
+    d->mTypeId = INTERFACE_INTEGER;
+}
+
+AnalyzerSettingInterfaceInteger::~AnalyzerSettingInterfaceInteger()
+{
+
+}
+
+AnalyzerInterfaceTypeId AnalyzerSettingInterfaceInteger::GetType()
+{
+    return INTERFACE_INTEGER;
+}
+
+int AnalyzerSettingInterfaceInteger::GetInteger()
+{
+    D_PTR();
+    return d->mValue;
+}
+
+void AnalyzerSettingInterfaceInteger::SetInteger(int integer)
+{
+    D_PTR();
+    d->mValue = integer;
+}
+
+int AnalyzerSettingInterfaceInteger::GetMax()
+{
+    D_PTR();
+    return d->mMaxValue;
+}
+
+int AnalyzerSettingInterfaceInteger::GetMin()
+{
+    D_PTR();
+    return d->mMinValue;
+}
+
+void AnalyzerSettingInterfaceInteger::SetMax(int max)
+{
+    D_PTR();
+    d->mMaxValue = max;
+}
+
+void AnalyzerSettingInterfaceInteger::SetMin(int min)
+{
+    D_PTR();
+    d->mMinValue = min;
+}
+
+//////////////////////////////////////////////////////////////////////////////
+
+AnalyzerSettingInterfaceText::AnalyzerSettingInterfaceText()
+{
+    D_PTR();
+    d->mTypeId = INTERFACE_TEXT;
+}
+
+AnalyzerSettingInterfaceText::~AnalyzerSettingInterfaceText()
+{
+
+}
+
+AnalyzerInterfaceTypeId AnalyzerSettingInterfaceText::GetType()
+{
+    return INTERFACE_TEXT;
+}
+
+const char *AnalyzerSettingInterfaceText::GetText()
+{
+    D_PTR();
+    return d->mText.c_str();
+}
+
+void AnalyzerSettingInterfaceText::SetText(const char *text)
+{
+    D_PTR();
+    d->mText = std::string(text);
+}
+
+AnalyzerSettingInterfaceText::TextType AnalyzerSettingInterfaceText::GetTextType()
+{
+    D_PTR();
+    return d->mTextType;
+}
+
+void AnalyzerSettingInterfaceText::SetTextType(AnalyzerSettingInterfaceText::TextType text_type)
+{
+    D_PTR();
+    d->mTextType = text_type;
+}
+
+//////////////////////////////////////////////////////////////////////////////
+
+AnalyzerSettingInterfaceBool::AnalyzerSettingInterfaceBool()
+{
+    D_PTR();
+    d->mTypeId = INTERFACE_BOOL;
+}
+
+AnalyzerSettingInterfaceBool::~AnalyzerSettingInterfaceBool()
+{
+
+}
+
+AnalyzerInterfaceTypeId AnalyzerSettingInterfaceBool::GetType()
+{
+    return INTERFACE_BOOL;
+}
+
+bool AnalyzerSettingInterfaceBool::GetValue()
+{
+    D_PTR();
+    return d->mValue != 0;
+}
+
+void AnalyzerSettingInterfaceBool::SetValue(bool value)
+{
+    D_PTR();
+    d->mValue = value;
+}
+
+const char *AnalyzerSettingInterfaceBool::GetCheckBoxText()
+{
+    D_PTR();
+    return d->mText.c_str();
+}
+
+void AnalyzerSettingInterfaceBool::SetCheckBoxText(const char *text)
+{
+    D_PTR();
+    d->mText = std::string(text);
 }
 
 

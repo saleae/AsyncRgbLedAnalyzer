@@ -79,10 +79,12 @@ void SimulationChannelDescriptor::Advance(U32 num_samples_to_advance)
 
 BitState SimulationChannelDescriptor::GetCurrentBitState()
 {
-
+    D_PTR();
+    return BIT_LOW;
 }
 
 U64 SimulationChannelDescriptor::GetCurrentSampleNumber()
 {
-
+    D_PTR();
+    return 0;
 }
