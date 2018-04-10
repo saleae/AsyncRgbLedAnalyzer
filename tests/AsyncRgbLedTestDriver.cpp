@@ -3,7 +3,9 @@
 #include "MockChannelData.h"
 #include "MockResults.h"
 #include "MockSettings.h"
+#include "MockSimulatedChannelDescriptor.h"
 
+#include <cmath>
 #include <cassert>
 #include <cstring> // for strcmp
 #include <iostream>
@@ -26,10 +28,23 @@ std::ostream& operator<<(std::ostream& out, const Channel& chan)
     return out;
 }
 
+#define TEST_VERIFY(a) \
+    if ( !(a) )  { \
+        std::cerr << "failed: " << #a << std::endl; \
+        exit(1); \
+    }
 
 #define TEST_VERIFY_EQ(a, b) \
     if ( !((a) == (b)) )  { \
         std::cerr << "failed: " << #a << " == " << #b << std::endl; \
+       std::cerr << "\tgot '" << (a) << "' and '" << (b) << "'" << std::endl; \
+        std::cerr << "\tat " << __FILE__ << ":" << __LINE__ << std::endl; \
+        exit(1); \
+    }
+
+#define TEST_EQ_EPSILON(a, b, ep) \
+    if ( std::fabs((a) - (b)) >= ep )  { \
+        std::cerr << "failed: " << #a << " == " << #b << " with epilson " << ep << std::endl; \
        std::cerr << "\tgot '" << (a) << "' and '" << (b) << "'" << std::endl; \
         std::cerr << "\tat " << __FILE__ << ":" << __LINE__ << std::endl; \
         exit(1); \
@@ -311,17 +326,53 @@ void testResynchronizeAfterBadData()
     std::cout << "passed test: re-synchronize after bad data mid-stream" << std::endl;
 }
 
+struct BitTiming {
+    double highSec;
+    double lowSec;
+};
+
+struct ModeTiming
+{
+    BitTiming zeroTiming;
+    BitTiming oneTiming;
+};
+
+void verifyReset(SimulatedChannel* sim_chan,
+                 double reset_time)
+{
+    TEST_EQ_EPSILON(reset_time, sim_chan->GetDurationToNextTransition(), sim_chan->GetSampleDuration());
+}
+
+void parseSimulationData(SimulatedChannel* sim_chan,
+                         double reset_time,
+                         const std::vector<ModeTiming>& timingData)
+{
+    // assume simulation starts with a reset
+    sim_chan->ResetToStart();
+    TEST_VERIFY(sim_chan->GetCurrentState() ==  BIT_LOW);
+    verifyReset(sim_chan, reset_time);
+}
+
 void testSimulationData1()
 {
 
     AnalyzerTest::Instance pluginInstance;
     pluginInstance.CreatePlugin("Addressable LEDs (Async)");
+    setupStandardTestSettings(pluginInstance, "WS2811");
 
-    pluginInstance.RunSimulation(10000, 12000000);
+    // use 20Mhz mode to generate mixture of low and high-speed samples
+    pluginInstance.RunSimulation(10000, 20000000);
+    auto  mockSimulationData = pluginInstance.GetSimulationChannel(TEST_CHANNEL);
+    assert(mockSimulationData);
 
-    auto  mockSimulationData = pluginInstance.GetSimulationChannel(Channel(0, 0, DIGITAL_CHANNEL));
+    TEST_VERIFY(mockSimulationData->GetSampleCount() >= 10000);
 
-    // verification the generated simulation data
+
+    // verify the generated simulation data
+    parseSimulationData(mockSimulationData, 50_us, {
+                            ModeTiming{ {500_ns, 2000_ns}, {1200_ns, 1300_ns} },
+                            ModeTiming{ {250_ns, 1000_ns}, {600_ns, 650_ns} }
+                        });
 }
 
 int main(int argc, char* argv[])
@@ -332,7 +383,7 @@ int main(int argc, char* argv[])
     testSynchronizeMidData();
     testResynchronizeAfterBadData();
 
-    //testSimulationData1();
+    testSimulationData1();
 
     return EXIT_SUCCESS;
 }

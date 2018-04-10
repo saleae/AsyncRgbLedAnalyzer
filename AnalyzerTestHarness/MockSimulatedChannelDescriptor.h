@@ -17,10 +17,29 @@ public:
 
     static SimulatedChannel* FromSimulatedChannelDescriptor(SimulationChannelDescriptor* sim);
 
+    U64 GetSampleCount() const;
+
+    void ResetToStart();
+
+    BitState GetCurrentState() const;
+
+    double GetDurationToNextTransition() const;
+
+    bool AdvanceToNextTransition();
+
+    double GetSampleDuration() const;
+
 private:
     friend ::SimulationChannelDescriptor;
 
     Channel mChannel;
+    U32 mSampleRateHz = 12000000;
+    BitState mInitialBitState = BIT_LOW;
+
+    U64 mCurrentSample = 0;
+    BitState mCurrentState = BIT_LOW;
+    U32 mTransitionIndex = 0;
+    std::vector<U64> mTransitions; // absolute sample numbers of transitions
 };
 
 

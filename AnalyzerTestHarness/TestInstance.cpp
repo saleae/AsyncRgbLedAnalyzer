@@ -85,6 +85,7 @@ void Instance::RunSimulation(U64 num_samples, U32 sample_rate_hz)
     mSimulatedChannels.clear();
     SimulationChannelDescriptor* channels[16];
 
+    GetDataFromAnalyzer(mAnalyzerInstance.get())->simulationRateHz = sample_rate_hz;
 
     U32 count = mAnalyzerInstance->GenerateSimulationData(num_samples, sample_rate_hz, channels);
     if (count == 0) {
@@ -97,8 +98,10 @@ void Instance::RunSimulation(U64 num_samples, U32 sample_rate_hz)
 
 SimulatedChannel *Instance::GetSimulationChannel(const Channel &chan)
 {
-    if (mSimulatedChannels.empty())
+    if (mSimulatedChannels.empty()) {
+        std::cerr << "no simualted channels exist" << std::endl;
         return nullptr;
+    }
 
     for (auto sc : mSimulatedChannels) {
         if (sc->GetChannel() == chan) {
@@ -106,6 +109,7 @@ SimulatedChannel *Instance::GetSimulationChannel(const Channel &chan)
         }
     }
 
+    std::cerr << "GetSimulationChannel: couldn't find data for channel" << std::endl;
     return nullptr;
 }
 
