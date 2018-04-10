@@ -132,9 +132,153 @@ void DataBuilder::AddBit( BitState bit )
         mData->mMask >>= 1;
 }
 
+void BinaryToStringStream( U64 number, U32 num_data_bits, std::stringstream& ss )
+{
+    if( num_data_bits == 0 )
+    {
+        int start;
+        ss << "0b  ";
+
+        U64 compairison = 0x0FFFFFFFFFFFFFFFull;
+        start = 63;
+
+        for( ; ; )
+        {
+            if( number > compairison )
+                break;
+
+            compairison >>= 4;
+            start -=4 ;
+
+            if( start == 3 )
+                break;
+        }
+
+        U32 space_counter = 0;
+        for(int i = start; i >= 0; --i)
+        {
+            if( space_counter == 4 )
+            {
+                space_counter = 0;
+                ss << "  ";
+            }
+            space_counter++;
+            if(number & ( (U64)1 << i))
+                ss << "1";
+            else
+                ss << "0";
+        }
+    }
+    else
+    {
+        ss << "0b  ";
+        U32 space_counter;
+        if( ( num_data_bits % 4 ) == 0 )
+            space_counter = 0;
+        else
+            space_counter = 4 - ( num_data_bits % 4 );  //normally we start at zero, but if this is not a multile of 4, we'll wan't to start a bit advanced.
+
+        for( int i = num_data_bits-1; i >= 0; --i )
+        {
+            if( space_counter == 4 )
+            {
+                space_counter = 0;
+                ss << "  ";
+            }
+            space_counter++;
+            if( ( number & ( 0x1ULL << i) ) != 0 )
+                ss << "1";
+            else
+                ss << "0";
+        }
+    }
+}
+
+void HexToStringStream( U64 number, U32 num_data_bits, std::stringstream& ss )
+{
+    if( num_data_bits == 0 )
+    {
+        ss << "0x" << std::hex << std::uppercase << number;
+    }else
+    {
+        U32 num_places = num_data_bits / 4;
+        if( ( num_data_bits % 4 ) != 0 )
+            num_places++;
+
+        ss << "0x" << std::hex << std::setw(num_places) << std::setfill('0') << std::uppercase << number;
+    }
+}
+
+void AsciiToStringStream( U64 number, std::stringstream& ss, bool csv_safe )
+{
+    if( (number < 0x20) || (number > 0x7e) )
+    {
+        switch( number )
+        {
+        case '\t':
+            ss << "\\t";
+            break;
+        case '\r':
+            ss << "\\r";
+            break;
+        case '\n':
+            ss << "\\n";
+            break;
+        default:
+            ss << "'" << number << "'";
+            break;
+        }
+    }
+    else if( ( number == ',' ) && ( csv_safe == true ) )
+    {
+        //',' == 0x0x2C
+        ss << "COMMA";
+    }
+    else
+    {
+        if( number == ' ' )
+            ss << "' '";
+        else
+            ss << char( number );
+    }
+}
+
 void AnalyzerHelpers::GetNumberString(U64 number, DisplayBase display_base, U32 num_data_bits, char *result_string, U32 result_string_max_length)
 {
+    std::stringstream ss;
+    bool csv_safe = true;
 
+    switch( display_base )
+    {
+    case Binary:
+        BinaryToStringStream( number, num_data_bits, ss );
+        break;
+
+    case Decimal:
+        ss << number;
+        break;
+
+    case Hexadecimal:
+        HexToStringStream( number, num_data_bits, ss );
+        break;
+
+    case ASCII:
+        AsciiToStringStream( number, ss, csv_safe );
+        break;
+
+    case AsciiHex:
+        AsciiToStringStream( number, ss, csv_safe );
+        ss << " (";
+        HexToStringStream( number, num_data_bits, ss );
+        ss << ")";
+        break;
+    }
+
+    std::string result = ss.str();
+    if( ( result.size() + 1 ) > result_string_max_length )
+        result = result.substr( 0, result_string_max_length - 1 );
+
+    strcpy( result_string, result.c_str() );
 }
 
 void AnalyzerHelpers::GetTimeString( U64 sample, U64 trigger_sample, U32 sample_rate_hz, char* result_string, U32 result_string_max_length )
@@ -154,11 +298,12 @@ void AnalyzerHelpers::GetTimeString( U64 sample, U64 trigger_sample, U32 sample_
 
 U64 AnalyzerHelpers::AdjustSimulationTargetSample(U64 target_sample, U32 sample_rate, U32 simulation_sample_rate)
 {
-
+    //we need to adjust the requested minimum_sample_index to our mSimulationSampleRateHz
+    U64 multiplier = sample_rate / simulation_sample_rate;
+    return target_sample / multiplier;
 }
 
 /////////////////////////////////////////////////////////////////////////////
-
 
 
 struct SimpleArchiveData
@@ -182,7 +327,8 @@ void SimpleArchive::SetString( const char* archive_string )
 
 const char* SimpleArchive::GetString()
 {
- }
+    return nullptr;
+}
 
 bool SimpleArchive::operator<<( U64 data )
 {

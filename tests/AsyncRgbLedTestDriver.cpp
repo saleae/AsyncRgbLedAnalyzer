@@ -5,6 +5,7 @@
 #include "MockSettings.h"
 
 #include <cassert>
+#include <cstring> // for strcmp
 #include <iostream>
 
 // output operators for the test macro
@@ -153,13 +154,10 @@ void testBasicAnalysis()
     TEST_VERIFY_EQ(results->GetFrameRangeForPacket(1), MockResultData::FrameRange(3, 5));
 
     // bubble text generation
-
     pluginInstance.GenerateBubbleText(2, TEST_CHANNEL, Decimal);
     TEST_VERIFY_EQ(results->TotalStringCount(), 4);
-#if 0
     TEST_VERIFY_EQ(results->GetString(0), "LED 2 Red: 102 Green: 119 Blue: 136 #667788")
     TEST_VERIFY_EQ(results->GetString(1), "2 R: 102 G: 119 B: 136 #667788")
-#endif
     TEST_VERIFY_EQ(results->GetString(2), "(2) #667788")
     TEST_VERIFY_EQ(results->GetString(3), "#667788")
 
@@ -329,7 +327,7 @@ int main(int argc, char* argv[])
     testSynchronizeMidData();
     testResynchronizeAfterBadData();
 
-    testSimulationData1();
+    //testSimulationData1();
 
     return EXIT_SUCCESS;
 }
