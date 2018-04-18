@@ -42,23 +42,48 @@ public:
         PulseTiming lowPulse;
     };
 
+    struct ModeTiming
+    {
+        BitTiming zero;
+        BitTiming one;
+    };
+
+
     LedChannelDataGenerator(MockChannelData* mockChannel, int sampleRate)
     {
         mChannelData = mockChannel;
         mSampleRate = sampleRate;
     }
 
+    void AddMode(const ModeTiming& mode)
+    {
+        mModes.push_back(mode);
+    }
+
+    void SetTolerance(double d)
+    {
+        mTolerance = d;
+    }
+
+    double computePulse(const PulseTiming& t)
+    {
+        const double actualMean = (t.min + t.max) * 0.5,
+              range = t.max - t.min;
+
+        // we want to offset by a random amount of the range that's less
+        // than the tolerance.
+        return actualMean + (drand48() * range * mTolerance * 0.5);
+    }
+
     void appendChannelWord(std::vector<double>& result, U16 byte)
     {
+        const ModeTiming& tm = mModes.at(mModeIndex);
+
         for (int bitIndex = mChannelBitSize - 1; bitIndex >= 0; --bitIndex) {
             const bool b = byte >> (bitIndex) & 1;
-            if (b) {
-                result.push_back(1200_ns);
-                result.push_back(1300_ns);
-            } else {
-                result.push_back(500_ns);
-                result.push_back(2000_ns);
-            }
+            const auto bitTiming = b ? tm.one : tm.zero;
+            result.push_back(computePulse(bitTiming.hiPulse));
+            result.push_back(computePulse(bitTiming.lowPulse));
         }
     }
 
@@ -162,10 +187,20 @@ private:
     U32 mSampleRate = 12000000;
     double mAccumulatedError = 0.0;
 
-    // tolerancing data
-
+    double mTolerance = 0.0;
+    std::vector<ModeTiming> mModes;
 
     MockChannelData* mChannelData = nullptr;
+};
+
+const LedChannelDataGenerator::ModeTiming WS2811_normal_speed = {
+    {{350_ns, 500_ns, 650_ns}, {1850_ns, 2000_ns, 2150_ns}},  // zero bit
+    {{1050_ns, 1200_ns, 1350_ns}, {1150_ns, 1300_ns, 1450_ns}}  // one bit
+};
+
+const LedChannelDataGenerator::ModeTiming WS2811_high_speed = {
+    {{175_ns, 250_ns, 325_ns}, {925_ns, 1000_ns, 1075_ns}},      // 0-bit times
+    {{525_ns, 600_ns, 675_ns}, {575_ns, 650_ns, 725_ns}}      // 1-bit times
 };
 
 void ws2811_test_append_byte(std::vector<double>& result, U8 byte)
@@ -231,6 +266,10 @@ void testBasicAnalysis()
     channelData.TestSetInitialBitState(BIT_LOW);
 
     LedChannelDataGenerator dataGenerator(&channelData, pluginInstance.GetSampleRate());
+    dataGenerator.AddMode(WS2811_normal_speed);
+    dataGenerator.AddMode(WS2811_high_speed);
+    dataGenerator.SetTolerance(0.9);
+
     dataGenerator.appendFromText("reset,"
                                  "#aabbcc,#223344,#667788_reset,"
                                  "#aabbcc,#223344,#667788_reset"
