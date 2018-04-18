@@ -8,6 +8,7 @@
 
 #include <cmath>
 #include <cassert>
+#include <exception>
 
 namespace {
 
@@ -26,6 +27,146 @@ double operator "" _us( unsigned long long x )
 const Channel TEST_CHANNEL = Channel(0, 0, DIGITAL_CHANNEL);
 
 using namespace AnalyzerTest;
+
+class LedChannelDataGenerator
+{
+public:
+    struct PulseTiming
+    {
+        double min, mean, max; // all in seconds
+    };
+
+    struct BitTiming
+    {
+        PulseTiming hiPulse;
+        PulseTiming lowPulse;
+    };
+
+    LedChannelDataGenerator(MockChannelData* mockChannel, int sampleRate)
+    {
+        mChannelData = mockChannel;
+        mSampleRate = sampleRate;
+    }
+
+    void appendChannelWord(std::vector<double>& result, U16 byte)
+    {
+        for (int bitIndex = mChannelBitSize - 1; bitIndex >= 0; --bitIndex) {
+            const bool b = byte >> (bitIndex) & 1;
+            if (b) {
+                result.push_back(1200_ns);
+                result.push_back(1300_ns);
+            } else {
+                result.push_back(500_ns);
+                result.push_back(2000_ns);
+            }
+        }
+    }
+
+    void appendRGB(std::vector<double>& result, U16 red, U16 green, U16 blue)
+    {
+        appendChannelWord(result, red);
+        appendChannelWord(result, green);
+        appendChannelWord(result, blue);
+    }
+
+    U8 parseHexChar(const char c)
+    {
+        if (isdigit(c)) return c - '0';
+        if ((c >= 'a') && (c <= 'f')) return c - 'a';
+        if ((c >= 'A') && (c <= 'F')) return c - 'A';
+        throw std::invalid_argument("Can't parse CSS color");
+    }
+
+    void appendCSSColor(std::vector<double>& result, const std::string& css)
+    {
+        // basic CSS color parsing
+        assert(css.at(0) == '#');
+        appendRGB(result,
+                  parseHexChar(css.at(1)) << 4 | parseHexChar(css.at(2)),
+                  parseHexChar(css.at(3)) << 4 | parseHexChar(css.at(4)),
+                  parseHexChar(css.at(5)) << 4 | parseHexChar(css.at(6))
+                  );
+    }
+
+    double resetPulseDuration() const
+    {
+        return 55_us;
+    }
+
+    void appendFrameFromCSS(const std::string& cssColors, bool reset = true)
+    {
+        auto currentPos = 0;
+        std::vector<double> result;
+        for ( ;; ) {
+            auto nextComma = cssColors.find(',', currentPos);
+            std::string color;
+            if (nextComma == std::string::npos) {
+                // last value
+                color = cssColors.substr(currentPos);
+            } else {
+                color = cssColors.substr(currentPos, nextComma - currentPos);
+                currentPos = nextComma;
+            }
+
+            appendCSSColor(result, color);
+            if (nextComma == std::string::npos) {
+                break;
+            }
+        }
+
+        if (reset) {
+            result.back() = resetPulseDuration();
+        }
+
+        mAccumulatedError =
+                mChannelData->TestAppendIntervals(mSampleRate, mAccumulatedError, result);
+    }
+
+    void appendFromText(const std::string& text)
+    {
+        for (int currentPos = 0 ; currentPos != std::string::npos ; ) {
+            std::string token;
+            auto nextComma = text.find(',', currentPos);
+            if (nextComma == std::string::npos) {
+                token = text.substr(currentPos);
+                currentPos = nextComma;
+            } else {
+                token = text.substr(currentPos, nextComma - currentPos);
+                currentPos = nextComma + 1;
+            }
+
+            if (token.empty()) {
+                continue;
+            } else if (token == "reset") {
+                mAccumulatedError =
+                        mChannelData->TestAppendIntervals(mSampleRate, mAccumulatedError, resetPulseDuration());
+            } else if (token.at(0) == '#') {
+                // append a simple color
+                std::vector<double> result;
+                appendCSSColor(result, token);
+
+                if (token.rfind("_reset") != std::string::npos) {
+                    result.back() = resetPulseDuration();
+                }
+
+                mAccumulatedError =
+                        mChannelData->TestAppendIntervals(mSampleRate, mAccumulatedError, result);
+            }
+        } // of token parsing loop
+    }
+private:
+    const U8 mChannelBitSize = 8;
+    U8 mModeIndex = 0; // 0 - normal speed, 1 = hi-speed if available
+
+
+    U32 mSampleRate = 12000000;
+    double mAccumulatedError = 0.0;
+
+    // tolerancing data
+
+
+    MockChannelData* mChannelData = nullptr;
+};
 
 void ws2811_test_append_byte(std::vector<double>& result, U8 byte)
 {
@@ -88,17 +229,12 @@ void testBasicAnalysis()
 
     MockChannelData channelData(&pluginInstance);
     channelData.TestSetInitialBitState(BIT_LOW);
-    channelData.TestAppendIntervals(pluginInstance.GetSampleRate(), 0.0,
-                                    55_us,
-                                    // first packet
-                                    ws2811_test_rgb(0xaa, 0xbb, 0xcc),
-                                    ws2811_test_rgb(0x22, 0x33, 0x44),
-                                    ws2811_test_rgb_and_reset(0x66, 0x77, 0x88, 55_us),
-                                    // second packet
-                                    ws2811_test_rgb(0xaa, 0xbb, 0xcc),
-                                    ws2811_test_rgb(0x22, 0x33, 0x44),
-                                    ws2811_test_rgb_and_reset(0x66, 0x77, 0x88, 55_us)
-                                    );
+
+    LedChannelDataGenerator dataGenerator(&channelData, pluginInstance.GetSampleRate());
+    dataGenerator.appendFromText("reset,"
+                                 "#aabbcc,#223344,#667788_reset,"
+                                 "#aabbcc,#223344,#667788_reset"
+                                 );
 
     pluginInstance.SetChannelData(TEST_CHANNEL, &channelData);
     auto rr= pluginInstance.RunAnalyzerWorker();
