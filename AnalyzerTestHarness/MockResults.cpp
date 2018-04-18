@@ -229,6 +229,11 @@ std::string MockResultData::GetTabularText(U32 index) const
     return mTabularText.at(index);
 }
 
+std::ostream &operator<<(std::ostream &out, const MockResultData::FrameRange &range)
+{
+    out << "Frames " << range.first << ":" << range.second;
+    return out;
+}
 
 } // of namespace
 

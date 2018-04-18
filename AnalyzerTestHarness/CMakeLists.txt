@@ -13,9 +13,12 @@ set(TEST_HARNESS_SOURCES
     MockResults.cpp
     MockSettings.h
     SettingsStubs.cpp 
+    StreamHelpers.h
+    StreamHelpers.cpp
     TestAnalyzerData.h
     TestInstance.cpp
     TestInstance.h
+    TestMacros.h
 )
 
 add_library(AnalyzerTestHarness STATIC ${TEST_HARNESS_SOURCES})

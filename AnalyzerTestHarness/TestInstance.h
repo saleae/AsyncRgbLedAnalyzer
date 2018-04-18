@@ -30,6 +30,8 @@ public:
 class Instance
 {
 public:
+    Instance(const std::string& name = {});
+
     ~Instance();
 
     void CreatePlugin(const std::string &name);

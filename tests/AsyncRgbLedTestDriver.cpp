@@ -4,54 +4,10 @@
 #include "MockResults.h"
 #include "MockSettings.h"
 #include "MockSimulatedChannelDescriptor.h"
+#include "TestMacros.h"
 
 #include <cmath>
 #include <cassert>
-#include <cstring> // for strcmp
-#include <iostream>
-
-// output operators for the test macro
-std::ostream& operator<<(std::ostream& out, const AnalyzerTest::MockResultData::FrameRange& range)
-{
-    out << "Frames " << range.first << ":" << range.second;
-    return out;
-}
-
-std::ostream& operator<<(std::ostream& out, const Channel& chan)
-{
-    out << "Channel{" << chan.mDeviceId << "/" << chan.mChannelIndex << " ";
-    if (chan.mDataType ==ANALOG_CHANNEL) {
-        out << "A}";
-    } else {
-        out << "D}";
-    }
-    return out;
-}
-
-#define TEST_VERIFY(a) \
-    if ( !(a) )  { \
-        std::cerr << "failed: " << #a << std::endl; \
-        exit(1); \
-    }
-
-#define TEST_VERIFY_EQ(a, b) \
-    if ( !((a) == (b)) )  { \
-        std::cerr << "failed: " << #a << " == " << #b << std::endl; \
-       std::cerr << "\tgot '" << (a) << "' and '" << (b) << "'" << std::endl; \
-        std::cerr << "\tat " << __FILE__ << ":" << __LINE__ << std::endl; \
-        exit(1); \
-    }
-
-#define TEST_EQ_EPSILON(a, b, ep) \
-    if ( std::fabs((a) - (b)) >= ep )  { \
-        std::cerr << "failed: " << #a << " == " << #b << " with epilson " << ep << std::endl; \
-       std::cerr << "\tgot '" << (a) << "' and '" << (b) << "'" << std::endl; \
-        std::cerr << "\tat " << __FILE__ << ":" << __LINE__ << std::endl; \
-        exit(1); \
-    }
-
-#define TEST_VERIFY_EQ_CHARS(a, b) \
-    assert(!strcmp(a, b))
 
 namespace {
 
@@ -114,6 +70,8 @@ U64 rgb_triple_as_u64(U16 red, U16 green, U16 blue)
 
 void setupStandardTestSettings(Instance& plugin, const std::string& controllerName)
 {
+    plugin.SetSampleRate(20000000);
+
     auto mockSettings = MockSettings::MockFromSettings(plugin.GetSettings());
 
     mockSettings->GetSetting("LED Channel")->mChannel = TEST_CHANNEL;
@@ -125,10 +83,8 @@ void setupStandardTestSettings(Instance& plugin, const std::string& controllerNa
 
 void testBasicAnalysis()
 {
-    Instance pluginInstance;
-    pluginInstance.CreatePlugin("Addressable LEDs (Async)");
+    Instance pluginInstance{"Addressable LEDs (Async)"};
     setupStandardTestSettings(pluginInstance, "WS2811");
-    pluginInstance.SetSampleRate(20000000);
 
     MockChannelData channelData(&pluginInstance);
     channelData.TestSetInitialBitState(BIT_LOW);
@@ -186,10 +142,7 @@ void testBasicAnalysis()
 
 void testSettings()
 {
-    Instance pluginInstance;
-    pluginInstance.CreatePlugin("Addressable LEDs (Async)");
-
-
+    Instance pluginInstance{"Addressable LEDs (Async)"};
     auto mock = MockSettings::MockFromSettings(pluginInstance.GetSettings());
 
     // should default to channel zero
@@ -213,18 +166,14 @@ void testSettings()
 
 void testLoadSettings()
 {
-    AnalyzerTest::Instance pluginInstance;
-    pluginInstance.CreatePlugin("Addressable LEDs (Async)");
-
+    Instance pluginInstance{"Addressable LEDs (Async)"};
     AnalyzerSettings* settings = pluginInstance.GetSettings();
 }
 
 void testSynchronizeMidData()
 {
-    Instance pluginInstance;
-    pluginInstance.CreatePlugin("Addressable LEDs (Async)");
+    Instance pluginInstance{"Addressable LEDs (Async)"};
     setupStandardTestSettings(pluginInstance, "WS2811");
-    pluginInstance.SetSampleRate(20000000);
 
     MockChannelData channelData(&pluginInstance);
     channelData.TestSetInitialBitState(BIT_LOW);
@@ -275,10 +224,8 @@ void testSynchronizeMidData()
 
 void testResynchronizeAfterBadData()
 {
-    Instance pluginInstance;
-    pluginInstance.CreatePlugin("Addressable LEDs (Async)");
+    Instance pluginInstance{"Addressable LEDs (Async)"};
     setupStandardTestSettings(pluginInstance, "WS2811");
-    pluginInstance.SetSampleRate(20000000);
 
     MockChannelData channelData(&pluginInstance);
     channelData.TestSetInitialBitState(BIT_LOW);
@@ -465,9 +412,7 @@ void parseSimulationData(SimulatedChannel* sim_chan,
 
 void testSimulationData1()
 {
-
-    AnalyzerTest::Instance pluginInstance;
-    pluginInstance.CreatePlugin("Addressable LEDs (Async)");
+    Instance pluginInstance{"Addressable LEDs (Async)"};
     setupStandardTestSettings(pluginInstance, "WS2811");
 
     const U64 numSamplesToGenerate = 1000000;

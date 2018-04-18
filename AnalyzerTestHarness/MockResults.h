@@ -1,6 +1,8 @@
 #ifndef ANALYZER_TEST_MOCK_RESULTS
 #define ANALYZER_TEST_MOCK_RESULTS
 
+#include <iostream>
+
 #include "AnalyzerResults.h"
 
 namespace AnalyzerTest
@@ -61,6 +63,9 @@ private:
 
     bool mCancelled = false;
 };
+
+// output operators for the test macro
+std::ostream& operator<<(std::ostream& out, const MockResultData::FrameRange& range);
 
 }  // of namespace
 

@@ -21,6 +21,13 @@ AnalyzerResults *Instance::GetResults()
     return GetResultsFromAnalyzer(mAnalyzerInstance.get());
 }
 
+Instance::Instance(const std::string& name)
+{
+    if (!name.empty()) {
+        CreatePlugin(name);
+    }
+}
+
 Instance::~Instance()
 {
 
