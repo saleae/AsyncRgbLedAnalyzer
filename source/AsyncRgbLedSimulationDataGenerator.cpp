@@ -59,10 +59,10 @@ U32 AsyncRgbLedSimulationDataGenerator::GenerateSimulationData( U64 largest_samp
     {
         WriteReset();
 
-        // six RGB-triple cascade between resets, i.e six discrete LEDs
-        // or two of the 3-LED combined drivers. We could perhaps make
+        // tweleve RGB-triple cascade between resets, i.e twelve discrete LEDs
+        // or four of the 3-LED combined drivers. We could perhaps make
         // this adjustable
-        for ( int t = 0; t < 6; ++t )
+        for ( int t = 0; t < 12; ++t )
         {
             CreateRGBWord();
         }

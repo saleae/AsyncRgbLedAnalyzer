@@ -48,11 +48,9 @@ public:
         BitTiming one;
     };
 
-
-    LedChannelDataGenerator(MockChannelData* mockChannel, int sampleRate)
+    void SetMockChannel(MockChannelData* mock)
     {
-        mChannelData = mockChannel;
-        mSampleRate = sampleRate;
+        mChannelData = mock;
     }
 
     void AddMode(const ModeTiming& mode)
@@ -60,11 +58,26 @@ public:
         mModes.push_back(mode);
     }
 
+    void SetResetDuration(double d)
+    {
+        mResetDuration = d;
+    }
+
     void SetTolerance(double d)
     {
         mTolerance = d;
     }
 
+    void SetSampleRate(U32 sampleRateHz)
+    {
+        mSampleRate = sampleRateHz;
+    }
+
+    void SetGRBLayout()
+    {
+        mGRBLayout = true;
+
+    }
     double computePulse(const PulseTiming& t)
     {
         const double actualMean = (t.min + t.max) * 0.5,
@@ -89,8 +102,13 @@ public:
 
     void appendRGB(std::vector<double>& result, U16 red, U16 green, U16 blue)
     {
-        appendChannelWord(result, red);
-        appendChannelWord(result, green);
+        if (mGRBLayout) {
+            appendChannelWord(result, green);
+            appendChannelWord(result, red);
+        } else {
+            appendChannelWord(result, red);
+            appendChannelWord(result, green);
+        }
         appendChannelWord(result, blue);
     }
 
@@ -115,7 +133,7 @@ public:
 
     double resetPulseDuration() const
     {
-        return 55_us;
+        return mResetDuration;
     }
 
     void appendFrameFromCSS(const std::string& cssColors, bool reset = true)
@@ -186,10 +204,10 @@ private:
 
     U32 mSampleRate = 12000000;
     double mAccumulatedError = 0.0;
-
+    double mResetDuration = 55_us;
     double mTolerance = 0.0;
     std::vector<ModeTiming> mModes;
-
+    bool mGRBLayout = false;
     MockChannelData* mChannelData = nullptr;
 };
 
@@ -201,6 +219,36 @@ const LedChannelDataGenerator::ModeTiming WS2811_normal_speed = {
 const LedChannelDataGenerator::ModeTiming WS2811_high_speed = {
     {{175_ns, 250_ns, 325_ns}, {925_ns, 1000_ns, 1075_ns}},      // 0-bit times
     {{525_ns, 600_ns, 675_ns}, {575_ns, 650_ns, 725_ns}}      // 1-bit times
+};
+
+const LedChannelDataGenerator::ModeTiming WS2812B = {
+    {{250_ns, 400_ns, 550_ns}, {700_ns, 850_ns, 1000_ns}},     // 0-bit times
+    {{650_ns, 800_ns, 950_ns}, {300_ns, 450_ns, 600_ns}}  // 1-bit times
+};
+
+const LedChannelDataGenerator::ModeTiming WS2813 = {
+    {{300_ns, 375_ns, 450_ns}, {300_ns, 875_ns, 100_us}},     // 0-bit times
+    {{750_ns, 875_ns, 1000_ns}, {300_ns, 375_ns, 100_us}},  // 1-bit times
+};
+
+const LedChannelDataGenerator::ModeTiming TM1809_normal_speed = {
+    {{450_ns, 600_ns, 750_ns}, {1050_ns, 1200_ns, 1350_ns}},     // 0-bit times
+    {{1050_ns, 1200_ns, 1350_ns}, {450_ns, 600_ns, 750_ns}}  // 1-bit times
+};
+
+const LedChannelDataGenerator::ModeTiming TM1809_high_speed = {
+    {{250_ns, 320_ns, 390_ns}, {530_ns, 600_ns, 670_ns}},      // 0-bit times
+    {{530_ns, 600_ns, 670_ns}, {250_ns, 320_ns, 390_ns}}       // 1-bit times
+};
+
+const LedChannelDataGenerator::ModeTiming UCS1903_normal_speed = {
+    {{350_ns, 500_ns, 650_ns}, {1850_ns, 2000_ns, 2150_ns}},     // 0-bit times
+    {{1850_ns, 2000_ns, 2150_ns}, {350_ns, 500_ns, 650_ns}},  // 1-bit times
+};
+
+const LedChannelDataGenerator::ModeTiming UCS1903_high_speed = {
+    {{175_ns, 250_ns, 325_ns}, {925_ns, 1000_ns, 1075_ns}},      // 0-bit times
+    {{925_ns, 1000_ns, 1075_ns}, {175_ns, 250_ns, 325_ns}}      // 1-bit times
 };
 
 void ws2811_test_append_byte(std::vector<double>& result, U8 byte)
@@ -257,22 +305,20 @@ void setupStandardTestSettings(Instance& plugin, const std::string& controllerNa
     plugin.GetSettings()->SetSettingsFromInterfaces();
 }
 
-void testBasicAnalysis()
+void testBasicAnalysis(const std::string& controller,
+                       LedChannelDataGenerator* generator)
 {
     Instance pluginInstance{"Addressable LEDs (Async)"};
-    setupStandardTestSettings(pluginInstance, "WS2811");
+    setupStandardTestSettings(pluginInstance, controller);
 
     MockChannelData channelData(&pluginInstance);
     channelData.TestSetInitialBitState(BIT_LOW);
 
-    LedChannelDataGenerator dataGenerator(&channelData, pluginInstance.GetSampleRate());
-    dataGenerator.AddMode(WS2811_normal_speed);
-    dataGenerator.AddMode(WS2811_high_speed);
-    dataGenerator.SetTolerance(0.9);
-
-    dataGenerator.appendFromText("reset,"
-                                 "#aabbcc,#223344,#667788_reset,"
-                                 "#aabbcc,#223344,#667788_reset"
+    generator->SetSampleRate(pluginInstance.GetSampleRate());
+    generator->SetMockChannel(&channelData);
+    generator->appendFromText("reset,"
+                                 "#aabbcc,#223344,#667788,#cfcfcf,#deadbe,#7f7f7f_reset,"
+                                 "#aabbcc,#223344,#667788,#998877,#eeddff,#123456_reset"
                                  );
 
     pluginInstance.SetChannelData(TEST_CHANNEL, &channelData);
@@ -283,21 +329,24 @@ void testBasicAnalysis()
     // validation
     auto results = MockResultData::MockFromResults(pluginInstance.GetResults());
 
-    TEST_VERIFY_EQ(results->TotalFrameCount(), 6);
-    TEST_VERIFY_EQ(results->TotalCommitCount(), 8) // commit per frame and per packet right now;
+    TEST_VERIFY_EQ(results->TotalFrameCount(), 12);
+    TEST_VERIFY_EQ(results->TotalCommitCount(), 14) // commit per frame and per packet right now;
     TEST_VERIFY_EQ(results->TotalPacketCount(), 3); // FIXME - analyzer is appending a final packet
 
     // verify LED indices between reset pulses
     TEST_VERIFY_EQ(results->GetFrame(2).mData2, 2);
-    TEST_VERIFY_EQ(results->GetFrame(3).mData2, 0);
-    TEST_VERIFY_EQ(results->GetFrame(5).mData2, 2);
+    TEST_VERIFY_EQ(results->GetFrame(3).mData2, 3);
+    TEST_VERIFY_EQ(results->GetFrame(5).mData2, 5);
+    TEST_VERIFY_EQ(results->GetFrame(6).mData2, 0);
+    TEST_VERIFY_EQ(results->GetFrame(7).mData2, 1);
+    TEST_VERIFY_EQ(results->GetFrame(11).mData2, 5);
 
     TEST_VERIFY_EQ(results->GetFrame(2).mData1, rgb_triple_as_u64(0x66, 0x77, 0x88));
-    TEST_VERIFY_EQ(results->GetFrame(4).mData1, rgb_triple_as_u64(0x22, 0x33, 0x44));
+    TEST_VERIFY_EQ(results->GetFrame(7).mData1, rgb_triple_as_u64(0x22, 0x33, 0x44));
 
     // verify packets
-    TEST_VERIFY_EQ(results->GetFrameRangeForPacket(0), MockResultData::FrameRange(0, 2));
-    TEST_VERIFY_EQ(results->GetFrameRangeForPacket(1), MockResultData::FrameRange(3, 5));
+    TEST_VERIFY_EQ(results->GetFrameRangeForPacket(0), MockResultData::FrameRange(0, 5));
+    TEST_VERIFY_EQ(results->GetFrameRangeForPacket(1), MockResultData::FrameRange(6, 11));
 
     // bubble text generation
     pluginInstance.GenerateBubbleText(2, TEST_CHANNEL, Decimal);
@@ -312,7 +361,7 @@ void testBasicAnalysis()
     TEST_VERIFY_EQ(results->TotalTabularTextCount(), 1);
     TEST_VERIFY_EQ(results->GetTabularText(0), "[2] 102, 119, 136");
 
-    std::cout << "passed test basic analysis ok" << std::endl;
+    std::cout << "passed test basic analysis ok for " << controller << std::endl;
 }
 
 void testSettings()
@@ -612,7 +661,64 @@ int main(int argc, char* argv[])
 {
     testSettings();
 
-    testBasicAnalysis();
+    std::vector<double> tolerances = {0.0, 0.5, 0.7};
+    for (double t : tolerances)
+    {
+        LedChannelDataGenerator gen;
+        gen.SetTolerance(t);
+        gen.AddMode(WS2811_normal_speed);
+        testBasicAnalysis("WS2811", &gen);
+    }
+
+    for (double t : tolerances)
+    {
+        LedChannelDataGenerator gen;
+        gen.SetTolerance(t);
+        gen.AddMode(WS2811_high_speed);
+        testBasicAnalysis("WS2811", &gen);
+    }
+
+    for (double t : tolerances)
+    {
+        LedChannelDataGenerator gen;
+        gen.SetTolerance(t);
+        gen.AddMode(WS2812B);
+        gen.SetGRBLayout();
+        testBasicAnalysis("WS2812B", &gen);
+    }
+
+    for (double t : tolerances)
+    {
+        LedChannelDataGenerator gen;
+        gen.SetTolerance(t);
+        gen.AddMode(TM1809_normal_speed);
+        testBasicAnalysis("TM1809", &gen);
+    }
+
+    for (double t : tolerances)
+    {
+        LedChannelDataGenerator gen;
+        gen.SetTolerance(t);
+        gen.AddMode(TM1809_high_speed);
+        testBasicAnalysis("TM1809", &gen);
+    }
+
+    for (double t : tolerances)
+    {
+        LedChannelDataGenerator gen;
+        gen.SetTolerance(t);
+        gen.AddMode(UCS1903_normal_speed);
+        testBasicAnalysis("UCS1903", &gen);
+    }
+
+    for (double t : tolerances)
+    {
+        LedChannelDataGenerator gen;
+        gen.SetTolerance(t);
+        gen.AddMode(UCS1903_high_speed);
+        testBasicAnalysis("UCS1903", &gen);
+    }
+
     testSynchronizeMidData();
     testResynchronizeAfterBadData();
 
