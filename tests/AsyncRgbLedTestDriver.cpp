@@ -81,11 +81,15 @@ public:
     double computePulse(const PulseTiming& t)
     {
         const double actualMean = (t.min + t.max) * 0.5,
-              range = t.max - t.min;
+              range = (t.max - t.min) * mTolerance;
 
-        // we want to offset by a random amount of the range that's less
-        // than the tolerance.
-        return actualMean + (drand48() * range * mTolerance * 0.5);
+        // we want to offset by a random amount of the range
+        double offsetRandom = drand48() - 0.5; // random is now -0.5 .. 0.5
+        const double p = actualMean + (offsetRandom * range);
+        assert(p >= t.min);
+        assert(p <= t.max);
+
+        return p;
     }
 
     void appendChannelWord(std::vector<double>& result, U16 byte)
@@ -97,6 +101,8 @@ public:
             const auto bitTiming = b ? tm.one : tm.zero;
             result.push_back(computePulse(bitTiming.hiPulse));
             result.push_back(computePulse(bitTiming.lowPulse));
+
+           // std::cerr << "P" << result.at(result.size()-2) << ":" << result.back() << std::endl;
         }
     }
 
@@ -294,7 +300,9 @@ U64 rgb_triple_as_u64(U16 red, U16 green, U16 blue)
 
 void setupStandardTestSettings(Instance& plugin, const std::string& controllerName)
 {
-    plugin.SetSampleRate(20000000);
+    plugin.SetSampleRate(40000000);
+
+   // plugin.SetSampleRate(20000000);
 
     auto mockSettings = MockSettings::MockFromSettings(plugin.GetSettings());
 
@@ -320,6 +328,8 @@ void testBasicAnalysis(const std::string& controller,
                                  "#aabbcc,#223344,#667788,#cfcfcf,#deadbe,#7f7f7f_reset,"
                                  "#aabbcc,#223344,#667788,#998877,#eeddff,#123456_reset"
                                  );
+
+  //  channelData.DumpTestData(pluginInstance.GetSampleRate());
 
     pluginInstance.SetChannelData(TEST_CHANNEL, &channelData);
     auto rr= pluginInstance.RunAnalyzerWorker();
@@ -549,7 +559,7 @@ bool classifyBit(const std::vector<ModeTiming>& timingData,
         ++i;
     }
 
-    std::cerr << "classifciation failure:" << hiSec << " / " << lowSec << std::endl;
+    std::cerr << "classification failure:" << hiSec << " / " << lowSec << std::endl;
     return false;
 }
 
@@ -660,8 +670,8 @@ void testSimulationData1()
 int main(int argc, char* argv[])
 {
     testSettings();
-
     std::vector<double> tolerances = {0.0, 0.5, 0.7};
+
     for (double t : tolerances)
     {
         LedChannelDataGenerator gen;
@@ -723,6 +733,8 @@ int main(int argc, char* argv[])
     testResynchronizeAfterBadData();
 
     testSimulationData1();
+
+    std::cout << "passed all tests" << std::endl;
 
     return EXIT_SUCCESS;
 }

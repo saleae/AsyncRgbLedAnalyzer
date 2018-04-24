@@ -2,6 +2,7 @@
 #define ASYNCRGBLED_ANALYZER_HELPERS
 
 #include <AnalyzerTypes.h>
+#include <iosfwd>
 
 enum ColorLayout
 {
@@ -51,7 +52,7 @@ struct TimingTolerance
     double mNominalSec = 0.0;
     double mMaximumSec = 0.0;
 
-    bool WithinTolerance( const double t ) const;
+    bool WithinTolerance( const double t, const double halfSampleWidth ) const;
 };
 
 struct BitTiming
@@ -65,8 +66,13 @@ struct BitTiming
     TimingTolerance mPositiveTiming;
     TimingTolerance mNegativeTiming;
 
-    bool WithinTolerance( const double positiveTime, const double negativeTime ) const;
+    bool WithinTolerance( const double positiveTime,
+                          const double negativeTime,
+                          const double halfSampleWidth) const;
 };
+
+std::ostream& operator<<(std::ostream& out, const TimingTolerance& tol);
+std::ostream& operator<<(std::ostream& out, const BitTiming& tol);
 
 #endif // of #define ASYNCRGBLED_ANALYZER_SETTINGS
 

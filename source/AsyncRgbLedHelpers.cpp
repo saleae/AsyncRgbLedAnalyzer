@@ -2,16 +2,19 @@
 
 #include <cassert>
 #include <cstring> // for memcpy
+#include <iostream>
 
-bool TimingTolerance::WithinTolerance( const double t ) const
+bool TimingTolerance::WithinTolerance( const double t, const double halfSampleWidth) const
 {
-    return ( t >= mMinimumSec ) && ( t <= mMaximumSec );
+    return ( t >= mMinimumSec - halfSampleWidth ) && ( t <= mMaximumSec + halfSampleWidth );
 }
 
-bool BitTiming::WithinTolerance( const double positiveTime, const double negativeTime ) const
+bool BitTiming::WithinTolerance( const double positiveTime,
+                                 const double negativeTime,
+                                 const double halfSampleWidth) const
 {
-    return mPositiveTiming.WithinTolerance( positiveTime ) &&
-           mNegativeTiming.WithinTolerance( negativeTime );
+    return mPositiveTiming.WithinTolerance( positiveTime, halfSampleWidth ) &&
+           mNegativeTiming.WithinTolerance( negativeTime, halfSampleWidth );
 }
 
 void RGBValue::ConvertToControllerOrder( ColorLayout layout, U16* values ) const
@@ -70,4 +73,16 @@ void RGBValue::ConvertTo8Bit( U8 bitSize, U8* values ) const
     values[0] = static_cast<U8>( red >>( bitSize - 8 ) );
     values[1] = static_cast<U8>( green >>( bitSize - 8 ) );
     values[2] = static_cast<U8>( blue >>( bitSize - 8 ) );
+}
+
+std::ostream& operator<<(std::ostream &out, const TimingTolerance &tol)
+{
+    out << '[' << tol.mMinimumSec << '|' << tol.mNominalSec << '|' << tol.mMaximumSec << ']';
+    return out;
+}
+
+std::ostream& operator<<(std::ostream &out, const BitTiming &bit)
+{
+    out << "H" << bit.mPositiveTiming << "-L" << bit.mNegativeTiming;
+    return out;
 }

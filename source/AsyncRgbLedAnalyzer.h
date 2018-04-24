@@ -34,7 +34,8 @@ class ANALYZER_EXPORT AsyncRgbLedAnalyzer : public Analyzer2
         bool mSimulationInitialized = false;
 
         // analysis vars:
-        double mSampleRateHz = 0;
+        double mSampleRateHz = 0.0;
+        double mHalfSampleWidth = 0.0;
 
         // minimum valid low time for a data bit, in either speed mode supported
         // by the controller.

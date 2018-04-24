@@ -26,4 +26,10 @@ add_library(AnalyzerTestHarness STATIC ${TEST_HARNESS_SOURCES})
 target_include_directories(AnalyzerTestHarness PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_include_directories(AnalyzerTestHarness PUBLIC ${ANALYZER_SDK_ROOT}/include)
 
-message(STATUS "Did process tsrt harness target")
+#------------------------------------------------------------------------
+# internal verification of the test-harness
+
+add_executable(TestHarnessVerification TestHarnessVerification.cpp TrivialAnalyzer.cpp)
+target_link_libraries(TestHarnessVerification AnalyzerTestHarness)
+
+add_test(TestHarnessVerification ${EXECUTABLE_OUTPUT_PATH}/TestHarnessVerification)

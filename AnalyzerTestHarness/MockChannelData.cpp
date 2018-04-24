@@ -3,6 +3,7 @@
 #include <cassert>
 #include <algorithm>
 #include <exception>
+#include <cmath>
 
 // REMOVE ME
 #include <iostream>
@@ -100,7 +101,9 @@ double MockChannelData::InnerAppendIntervals(U64 sampleRateHz, double startingEr
 
     for (auto i : intervals) {
         double nominalSamples = (i / sampleDuration) + currentError;
-        const U32 samplesToAdvance = static_cast<U32>(nominalSamples);
+        // testing using lround here rather that simple cast to int
+     //   const U32 samplesToAdvance = static_cast<U32>(nominalSamples);
+        const U32 samplesToAdvance = std::lround(nominalSamples);
         currentError = nominalSamples - static_cast<double>(samplesToAdvance);
         TestAppendTransitionAfterSamples(samplesToAdvance);
     }
@@ -118,15 +121,16 @@ void MockChannelData::CheckForCancellation() const
 void MockChannelData::DumpTestData(double sampleRateMhz)
 {
     double sampleDuration = 1.0 / sampleRateMhz;
+    int frame = 0;
     U64 previous = 0;
     for (int i=0; i<mTransitions.size(); ++i) {
+        if ((i % 48 )== 0) {
+            std::cout << "==" << frame++ << "===================" << std::endl;
+        }
+
         U64 interval = mTransitions.at(i) - previous;
         std::cout << interval << " " << interval * sampleDuration << std::endl;
         previous = mTransitions.at(i);
-
-        if ((i % 48 )== 0) {
-            std::cout << "===================" << std::endl;
-        }
     }
 }
 
