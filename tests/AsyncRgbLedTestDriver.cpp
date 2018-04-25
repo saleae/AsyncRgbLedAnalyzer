@@ -40,13 +40,35 @@ public:
     {
         PulseTiming hiPulse;
         PulseTiming lowPulse;
+
+        double shortestDuration() const {
+            return std::min(lowPulse.min, hiPulse.min);
+        }
+
+        double longestDuration() const {
+            return std::max(lowPulse.max, hiPulse.max);
+        }
     };
 
     struct ModeTiming
     {
         BitTiming zero;
         BitTiming one;
+
+        double shortestDuration() const {
+            return std::min(zero.shortestDuration(), one.shortestDuration());
+        }
+
+        double longestDuration() const {
+            return std::max(zero.longestDuration(), one.longestDuration());
+        }
     };
+
+    void Clear()
+    {
+        mChannelData = nullptr;
+        mAccumulatedError = 0.0;
+    }
 
     void SetMockChannel(MockChannelData* mock)
     {
@@ -118,23 +140,13 @@ public:
         appendChannelWord(result, blue);
     }
 
-    U8 parseHexChar(const char c)
-    {
-        if (isdigit(c)) return c - '0';
-        if ((c >= 'a') && (c <= 'f')) return c - 'a';
-        if ((c >= 'A') && (c <= 'F')) return c - 'A';
-        throw std::invalid_argument("Can't parse CSS color");
-    }
-
     void appendCSSColor(std::vector<double>& result, const std::string& css)
     {
         // basic CSS color parsing
         assert(css.at(0) == '#');
-        appendRGB(result,
-                  parseHexChar(css.at(1)) << 4 | parseHexChar(css.at(2)),
-                  parseHexChar(css.at(3)) << 4 | parseHexChar(css.at(4)),
-                  parseHexChar(css.at(5)) << 4 | parseHexChar(css.at(6))
-                  );
+        appendRGB(result, std::stoi(css.substr(1, 2), 0, 16),
+                  std::stoi(css.substr(3, 2), 0, 16),
+                  std::stoi(css.substr(5, 2), 0, 16));
     }
 
     double resetPulseDuration() const
@@ -189,6 +201,16 @@ public:
             } else if (token == "reset") {
                 mAccumulatedError =
                         mChannelData->TestAppendIntervals(mSampleRate, mAccumulatedError, resetPulseDuration());
+            } else if (token == "mangled_too_short") {
+                const ModeTiming& tm = mModes.at(mModeIndex);
+                double shortTime = tm.shortestDuration() * 0.7;
+                mAccumulatedError =
+                        mChannelData->TestAppendIntervals(mSampleRate, mAccumulatedError, {shortTime, shortTime});
+            } else if (token == "mangled_too_long") {
+                const ModeTiming& tm = mModes.at(mModeIndex);
+                double longTime = tm.longestDuration() * 1.5;
+                mAccumulatedError =
+                        mChannelData->TestAppendIntervals(mSampleRate, mAccumulatedError, {longTime, longTime});
             } else if (token.at(0) == '#') {
                 // append a simple color
                 std::vector<double> result;
@@ -257,37 +279,6 @@ const LedChannelDataGenerator::ModeTiming UCS1903_high_speed = {
     {{925_ns, 1000_ns, 1075_ns}, {175_ns, 250_ns, 325_ns}}      // 1-bit times
 };
 
-void ws2811_test_append_byte(std::vector<double>& result, U8 byte)
-{
-    for (int i=0; i<8; ++i) {
-        const bool b = byte >> (7 - i) & 1;
-        if (b) {
-            result.push_back(1200_ns);
-            result.push_back(1300_ns);
-        } else {
-            result.push_back(500_ns);
-            result.push_back(2000_ns);
-        }
-    }
-}
-
-std::vector<double> ws2811_test_rgb(U8 red, U8 green, U8 blue)
-{
-    std::vector<double> r;
-    r.reserve(48); // 48 transitions per 8-bit RGB word
-    ws2811_test_append_byte(r, red);
-    ws2811_test_append_byte(r, green);
-    ws2811_test_append_byte(r, blue);
-    return r;
-}
-
-std::vector<double> ws2811_test_rgb_and_reset(U8 red, U8 green, U8 blue, double resetDuration)
-{
-    std::vector<double> r = ws2811_test_rgb(red, green, blue);
-    r.back() = resetDuration;
-    return r;
-}
-
 U64 rgb_triple_as_u64(U16 red, U16 green, U16 blue)
 {
     U64 result = 0;
@@ -325,8 +316,8 @@ void testBasicAnalysis(const std::string& controller,
     generator->SetSampleRate(pluginInstance.GetSampleRate());
     generator->SetMockChannel(&channelData);
     generator->appendFromText("reset,"
-                                 "#aabbcc,#223344,#667788,#cfcfcf,#deadbe,#7f7f7f_reset,"
-                                 "#aabbcc,#223344,#667788,#998877,#eeddff,#123456_reset"
+                                 "#abbade,#223344,#667788,#cfcfcf,#deadbe,#7f7f7f_reset,"
+                                 "#aaddcc,#223344,#667788,#998877,#eeddff,#123456_reset"
                                  );
 
   //  channelData.DumpTestData(pluginInstance.GetSampleRate());
@@ -351,7 +342,9 @@ void testBasicAnalysis(const std::string& controller,
     TEST_VERIFY_EQ(results->GetFrame(7).mData2, 1);
     TEST_VERIFY_EQ(results->GetFrame(11).mData2, 5);
 
+    TEST_VERIFY_EQ(results->GetFrame(0).mData1, rgb_triple_as_u64(0xab, 0xba, 0xde));
     TEST_VERIFY_EQ(results->GetFrame(2).mData1, rgb_triple_as_u64(0x66, 0x77, 0x88));
+    TEST_VERIFY_EQ(results->GetFrame(6).mData1, rgb_triple_as_u64(0xaa, 0xdd, 0xcc));
     TEST_VERIFY_EQ(results->GetFrame(7).mData1, rgb_triple_as_u64(0x22, 0x33, 0x44));
 
     // verify packets
@@ -404,82 +397,73 @@ void testLoadSettings()
     AnalyzerSettings* settings = pluginInstance.GetSettings();
 }
 
-void testSynchronizeMidData()
+void testSynchronizeMidData(const std::string& controller,
+                            LedChannelDataGenerator* generator)
 {
     Instance pluginInstance{"Addressable LEDs (Async)"};
-    setupStandardTestSettings(pluginInstance, "WS2811");
+    setupStandardTestSettings(pluginInstance, controller);
 
     MockChannelData channelData(&pluginInstance);
     channelData.TestSetInitialBitState(BIT_LOW);
-    channelData.TestAppendIntervals(pluginInstance.GetSampleRate(), 0.0,
-                                    50_us,
-                                    // first packet
-                                    ws2811_test_rgb(0xaa, 0xbb, 0xcc),
-                                    ws2811_test_rgb(0x22, 0x33, 0x44),
-                                    ws2811_test_rgb_and_reset(0x11, 0x22, 0x33, 55_us),
-                                    // second packet
-                                    ws2811_test_rgb(0x44, 0x55, 0x66),
-                                    ws2811_test_rgb(0x22, 0x33, 0x44),
-                                    ws2811_test_rgb_and_reset(0x66, 0x77, 0x88, 55_us),
-                                    // third packet
-                                    ws2811_test_rgb(0xaa, 0xbb, 0xcc),
-                                    ws2811_test_rgb(0x99, 0x88, 0x77),
-                                    ws2811_test_rgb_and_reset(0x66, 0x77, 0x88, 55_us)
-                                    );
+
+    generator->SetSampleRate(pluginInstance.GetSampleRate());
+    generator->SetMockChannel(&channelData);
+    generator->appendFromText("reset,"
+                                 "#aabbcc,#223344,#667788,#cfcfcf,#deadbe,#7f7f7f_reset,"
+                                 "#aabbcc,#223344,#667788,#998877,#eeddff,#123456_reset,"
+                                 "#ddeeff,#112233,#223344,#445566,#556677,#987654_reset"
+                                 );
 
 
     // advance part-way through the first packet, so the analyzer has to sync
     // to the next reset pulse
     channelData.ResetCurrentSample(1000);
+
     pluginInstance.SetChannelData(TEST_CHANNEL, &channelData);
-    auto rr= pluginInstance.RunAnalyzerWorker();
+    auto rr = pluginInstance.RunAnalyzerWorker();
     // ensure we consumed all the data
     TEST_VERIFY_EQ(rr, Instance::WorkerRanOutOfData);
+
 
     // validation
     auto results = MockResultData::MockFromResults(pluginInstance.GetResults());
 
-    TEST_VERIFY_EQ(results->TotalFrameCount(), 6);
+    TEST_VERIFY_EQ(results->TotalFrameCount(), 12);
     TEST_VERIFY_EQ(results->TotalPacketCount(), 3); // FIXME, analyzer is appending an empty packet
 
     // verify LED indices between reset pulses
     TEST_VERIFY_EQ(results->GetFrame(1).mData2, 1);
-    TEST_VERIFY_EQ(results->GetFrame(3).mData2, 0);
+    TEST_VERIFY_EQ(results->GetFrame(5).mData2, 5);
+    TEST_VERIFY_EQ(results->GetFrame(6).mData2, 0);
 
-    TEST_VERIFY_EQ(results->GetFrame(0).mData1, rgb_triple_as_u64(0x44, 0x55, 0x66));
-    TEST_VERIFY_EQ(results->GetFrame(4).mData1, rgb_triple_as_u64(0x99, 0x88, 0x77));
+    TEST_VERIFY_EQ(results->GetFrame(0).mData1, rgb_triple_as_u64(0xaa, 0xbb, 0xcc));
+    TEST_VERIFY_EQ(results->GetFrame(3).mData1, rgb_triple_as_u64(0x99, 0x88, 0x77));
+    TEST_VERIFY_EQ(results->GetFrame(6).mData1, rgb_triple_as_u64(0xdd, 0xee, 0xff));
+    TEST_VERIFY_EQ(results->GetFrame(7).mData1, rgb_triple_as_u64(0x11, 0x22, 0x33));
 
     // verify packets
-    TEST_VERIFY_EQ(results->GetFrameRangeForPacket(0), MockResultData::FrameRange(0, 2));
-    TEST_VERIFY_EQ(results->GetFrameRangeForPacket(1), MockResultData::FrameRange(3, 5));
+    TEST_VERIFY_EQ(results->GetFrameRangeForPacket(0), MockResultData::FrameRange(0, 5));
+    TEST_VERIFY_EQ(results->GetFrameRangeForPacket(1), MockResultData::FrameRange(6, 11));
 
-    std::cout << "passed test: synchornize mid-stream" << std::endl;
+    std::cout << "passed test: sync mid-stream for:" << controller << std::endl;
 }
 
-void testResynchronizeAfterBadData()
+void testResynchronizeAfterBadData(const std::string& controller,
+                                   LedChannelDataGenerator* generator)
 {
     Instance pluginInstance{"Addressable LEDs (Async)"};
-    setupStandardTestSettings(pluginInstance, "WS2811");
+    setupStandardTestSettings(pluginInstance, controller);
 
     MockChannelData channelData(&pluginInstance);
     channelData.TestSetInitialBitState(BIT_LOW);
-    channelData.TestAppendIntervals(pluginInstance.GetSampleRate(), 0.0,
-                                    50_us,
-                                    // first packet
-                                    ws2811_test_rgb(0xaa, 0xbb, 0xcc),
-                                    ws2811_test_rgb(0x22, 0x33, 0x44),
-                                    ws2811_test_rgb_and_reset(0x11, 0x22, 0x33, 55_us),
-                                    // second packet (mangled!)
-                                    ws2811_test_rgb(0x44, 0x55, 0x66),
-                                    // garbage data
-                                    150_ns, 1000_ns, 300_ns, 2000_ns, 400_ns, 3000_ns,
-                                    ws2811_test_rgb_and_reset(0x66, 0x77, 0x88, 55_us),
-                                    // third packet
-                                    ws2811_test_rgb(0x11, 0x33, 0x22),
-                                    ws2811_test_rgb(0x99, 0x88, 0x77),
-                                    ws2811_test_rgb_and_reset(0x66, 0x77, 0x88, 55_us)
-                                    );
 
+    generator->SetSampleRate(pluginInstance.GetSampleRate());
+    generator->SetMockChannel(&channelData);
+    generator->appendFromText("reset,"
+                                 "#aabbcc,#223344,#667788,#cfcfcf,mangled_too_short,#7f7f7f_reset,"
+                                 "#aabbcc,#223344,mangled_too_long,#998877,#eeddff,#123456_reset,"
+                                 "#ddeeff,#112233,#223344,#445566,#556677,#987654_reset"
+                                 );
 
     pluginInstance.SetChannelData(TEST_CHANNEL, &channelData);
     auto rr= pluginInstance.RunAnalyzerWorker();
@@ -489,22 +473,27 @@ void testResynchronizeAfterBadData()
     // validation
     auto results = MockResultData::MockFromResults(pluginInstance.GetResults());
 
-    TEST_VERIFY_EQ(results->TotalFrameCount(), 7);
+    TEST_VERIFY_EQ(results->TotalFrameCount(), 12);
     TEST_VERIFY_EQ(results->TotalPacketCount(), 4); // FIXME, analyzer is appending an empty packet
 
     // verify LED indices between reset pulses
     TEST_VERIFY_EQ(results->GetFrame(1).mData2, 1);
     TEST_VERIFY_EQ(results->GetFrame(4).mData2, 0);
+    TEST_VERIFY_EQ(results->GetFrame(5).mData2, 1);
+    TEST_VERIFY_EQ(results->GetFrame(6).mData2, 0);
+    TEST_VERIFY_EQ(results->GetFrame(7).mData2, 1);
+    TEST_VERIFY_EQ(results->GetFrame(11).mData2, 5);
 
     TEST_VERIFY_EQ(results->GetFrame(0).mData1, rgb_triple_as_u64(0xaa, 0xbb, 0xcc));
-    TEST_VERIFY_EQ(results->GetFrame(4).mData1, rgb_triple_as_u64(0x11, 0x33, 0x22));
+    TEST_VERIFY_EQ(results->GetFrame(4).mData1, rgb_triple_as_u64(0xaa, 0xbb, 0xcc));
+    TEST_VERIFY_EQ(results->GetFrame(6).mData1, rgb_triple_as_u64(0xdd, 0xee, 0xff));
 
     // verify packets
-    TEST_VERIFY_EQ(results->GetFrameRangeForPacket(0), MockResultData::FrameRange(0, 2));
-    TEST_VERIFY_EQ(results->GetFrameRangeForPacket(1), MockResultData::FrameRange(3, 3));
-    TEST_VERIFY_EQ(results->GetFrameRangeForPacket(2), MockResultData::FrameRange(4, 6));
+    TEST_VERIFY_EQ(results->GetFrameRangeForPacket(0), MockResultData::FrameRange(0, 3));
+    TEST_VERIFY_EQ(results->GetFrameRangeForPacket(1), MockResultData::FrameRange(4, 5));
+    TEST_VERIFY_EQ(results->GetFrameRangeForPacket(2), MockResultData::FrameRange(6, 11));
 
-    std::cout << "passed test: re-synchronize after bad data mid-stream" << std::endl;
+    std::cout << "passed test: re-synchronize after bad data mid-stream; for " << controller << std::endl;
 }
 
 struct BitTiming {
@@ -667,72 +656,35 @@ void testSimulationData1()
     std::cout << "did parse simulation data" << std::endl;
 }
 
+void runTests(const std::string& name,
+              const LedChannelDataGenerator::ModeTiming& timing)
+{
+    std::vector<double> tolerances = {0.0, 0.5};
+    for (double t : tolerances)
+    {
+        LedChannelDataGenerator gen;
+        gen.SetTolerance(t);
+        gen.AddMode(timing);
+
+        testBasicAnalysis(name, &gen);
+        testSynchronizeMidData(name, &gen);
+        testResynchronizeAfterBadData(name, &gen);
+    }
+}
+
 int main(int argc, char* argv[])
 {
     testSettings();
-    std::vector<double> tolerances = {0.0, 0.5, 0.7};
-
-    for (double t : tolerances)
-    {
-        LedChannelDataGenerator gen;
-        gen.SetTolerance(t);
-        gen.AddMode(WS2811_normal_speed);
-        testBasicAnalysis("WS2811", &gen);
-    }
-
-    for (double t : tolerances)
-    {
-        LedChannelDataGenerator gen;
-        gen.SetTolerance(t);
-        gen.AddMode(WS2811_high_speed);
-        testBasicAnalysis("WS2811", &gen);
-    }
-
-    for (double t : tolerances)
-    {
-        LedChannelDataGenerator gen;
-        gen.SetTolerance(t);
-        gen.AddMode(WS2812B);
-        gen.SetGRBLayout();
-        testBasicAnalysis("WS2812B", &gen);
-    }
-
-    for (double t : tolerances)
-    {
-        LedChannelDataGenerator gen;
-        gen.SetTolerance(t);
-        gen.AddMode(TM1809_normal_speed);
-        testBasicAnalysis("TM1809", &gen);
-    }
-
-    for (double t : tolerances)
-    {
-        LedChannelDataGenerator gen;
-        gen.SetTolerance(t);
-        gen.AddMode(TM1809_high_speed);
-        testBasicAnalysis("TM1809", &gen);
-    }
-
-    for (double t : tolerances)
-    {
-        LedChannelDataGenerator gen;
-        gen.SetTolerance(t);
-        gen.AddMode(UCS1903_normal_speed);
-        testBasicAnalysis("UCS1903", &gen);
-    }
-
-    for (double t : tolerances)
-    {
-        LedChannelDataGenerator gen;
-        gen.SetTolerance(t);
-        gen.AddMode(UCS1903_high_speed);
-        testBasicAnalysis("UCS1903", &gen);
-    }
-
-    testSynchronizeMidData();
-    testResynchronizeAfterBadData();
-
     testSimulationData1();
+
+
+    runTests("WS2811", WS2811_normal_speed);
+    runTests("WS2811", WS2811_high_speed);
+    runTests("WS2812B", WS2812B);
+    runTests("TM1809", TM1809_normal_speed);
+    runTests("TM1809", TM1809_high_speed);
+    runTests("UCS1903", UCS1903_normal_speed);
+    runTests("UCS1903", UCS1903_high_speed);
 
     std::cout << "passed all tests" << std::endl;
 
