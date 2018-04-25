@@ -54,6 +54,7 @@ public:
     {
         BitTiming zero;
         BitTiming one;
+        bool isGRB; // we can't default this until C++14 unfortunately
 
         double shortestDuration() const {
             return std::min(zero.shortestDuration(), one.shortestDuration());
@@ -241,42 +242,50 @@ private:
 
 const LedChannelDataGenerator::ModeTiming WS2811_normal_speed = {
     {{350_ns, 500_ns, 650_ns}, {1850_ns, 2000_ns, 2150_ns}},  // zero bit
-    {{1050_ns, 1200_ns, 1350_ns}, {1150_ns, 1300_ns, 1450_ns}}  // one bit
+    {{1050_ns, 1200_ns, 1350_ns}, {1150_ns, 1300_ns, 1450_ns}},  // one bit
+    false // not GRB
 };
 
 const LedChannelDataGenerator::ModeTiming WS2811_high_speed = {
     {{175_ns, 250_ns, 325_ns}, {925_ns, 1000_ns, 1075_ns}},      // 0-bit times
-    {{525_ns, 600_ns, 675_ns}, {575_ns, 650_ns, 725_ns}}      // 1-bit times
+    {{525_ns, 600_ns, 675_ns}, {575_ns, 650_ns, 725_ns}},      // 1-bit times
+    false // not GRB
 };
 
 const LedChannelDataGenerator::ModeTiming WS2812B = {
     {{250_ns, 400_ns, 550_ns}, {700_ns, 850_ns, 1000_ns}},     // 0-bit times
-    {{650_ns, 800_ns, 950_ns}, {300_ns, 450_ns, 600_ns}}  // 1-bit times
+    {{650_ns, 800_ns, 950_ns}, {300_ns, 450_ns, 600_ns}},  // 1-bit times
+    true // is GRB
 };
 
 const LedChannelDataGenerator::ModeTiming WS2813 = {
     {{300_ns, 375_ns, 450_ns}, {300_ns, 875_ns, 100_us}},     // 0-bit times
     {{750_ns, 875_ns, 1000_ns}, {300_ns, 375_ns, 100_us}},  // 1-bit times
+    true // is GRB
 };
 
 const LedChannelDataGenerator::ModeTiming TM1809_normal_speed = {
     {{450_ns, 600_ns, 750_ns}, {1050_ns, 1200_ns, 1350_ns}},     // 0-bit times
-    {{1050_ns, 1200_ns, 1350_ns}, {450_ns, 600_ns, 750_ns}}  // 1-bit times
+    {{1050_ns, 1200_ns, 1350_ns}, {450_ns, 600_ns, 750_ns}},  // 1-bit times
+    false // not GRB
 };
 
 const LedChannelDataGenerator::ModeTiming TM1809_high_speed = {
     {{250_ns, 320_ns, 390_ns}, {530_ns, 600_ns, 670_ns}},      // 0-bit times
-    {{530_ns, 600_ns, 670_ns}, {250_ns, 320_ns, 390_ns}}       // 1-bit times
+    {{530_ns, 600_ns, 670_ns}, {250_ns, 320_ns, 390_ns}},       // 1-bit times
+    false // not GRB
 };
 
 const LedChannelDataGenerator::ModeTiming UCS1903_normal_speed = {
     {{350_ns, 500_ns, 650_ns}, {1850_ns, 2000_ns, 2150_ns}},     // 0-bit times
     {{1850_ns, 2000_ns, 2150_ns}, {350_ns, 500_ns, 650_ns}},  // 1-bit times
+    false // not GRB
 };
 
 const LedChannelDataGenerator::ModeTiming UCS1903_high_speed = {
     {{175_ns, 250_ns, 325_ns}, {925_ns, 1000_ns, 1075_ns}},      // 0-bit times
-    {{925_ns, 1000_ns, 1075_ns}, {175_ns, 250_ns, 325_ns}}      // 1-bit times
+    {{925_ns, 1000_ns, 1075_ns}, {175_ns, 250_ns, 325_ns}},      // 1-bit times
+    false // not GRB
 };
 
 U64 rgb_triple_as_u64(U16 red, U16 green, U16 blue)
@@ -416,8 +425,10 @@ void testSynchronizeMidData(const std::string& controller,
 
 
     // advance part-way through the first packet, so the analyzer has to sync
-    // to the next reset pulse
-    channelData.ResetCurrentSample(1000);
+    // to the next reset pulse. At 48 transitions per 8-bit RGB frame,
+    // let's advance three frames into the first packet so it's defintiely
+    // screwed.
+    channelData.AdvanceNTransitions(150);
 
     pluginInstance.SetChannelData(TEST_CHANNEL, &channelData);
     auto rr = pluginInstance.RunAnalyzerWorker();
@@ -659,12 +670,15 @@ void testSimulationData1()
 void runTests(const std::string& name,
               const LedChannelDataGenerator::ModeTiming& timing)
 {
+    // tolerance values higher than 0.5 cause test failures for the moment
     std::vector<double> tolerances = {0.0, 0.5};
-    for (double t : tolerances)
-    {
+    for (double t : tolerances) {
         LedChannelDataGenerator gen;
         gen.SetTolerance(t);
         gen.AddMode(timing);
+        if (timing.isGRB) {
+            gen.SetGRBLayout();
+        }
 
         testBasicAnalysis(name, &gen);
         testSynchronizeMidData(name, &gen);
@@ -676,7 +690,6 @@ int main(int argc, char* argv[])
 {
     testSettings();
     testSimulationData1();
-
 
     runTests("WS2811", WS2811_normal_speed);
     runTests("WS2811", WS2811_high_speed);
