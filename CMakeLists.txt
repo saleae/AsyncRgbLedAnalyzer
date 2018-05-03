@@ -4,7 +4,7 @@ set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED YES)
 
 # custom CMake Modules are located in the cmake directory.
-set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
+set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake" "${CMAKE_SOURCE_DIR}/AnalyzerSDK")
 
 project(AsyncRgbLedAnalyzer)
 
@@ -16,6 +16,8 @@ include (Dart)
 enable_testing()
 
 option(ENABLE_ASTYLE  "Set to ON to enable AStyle formating of the code" ON)
+
+include(AnalyzerSDKConfig)
 
 
 set(SOURCES source/AsyncRgbLedAnalyzer.cpp
@@ -31,22 +33,7 @@ set(SOURCES source/AsyncRgbLedAnalyzer.cpp
 )
 
 add_library(AsyncRgbLedAnalyzer SHARED ${SOURCES})
-
-# TODO - make an imported target for the AnalyzerLib
-set (ANALYZER_SDK_ROOT "${PROJECT_SOURCE_DIR}/AnalyzerSDK")
-if (APPLE)
-    target_link_libraries(AsyncRgbLedAnalyzer ${ANALYZER_SDK_ROOT}/lib/libAnalyzer.dylib)
-elseif(MSVC)
-    if( CMAKE_CL_64 )
-        target_link_libraries(AsyncRgbLedAnalyzer ${ANALYZER_SDK_ROOT}/lib/Analyzer64.lib)
-    else()
-         target_link_libraries(AsyncRgbLedAnalyzer ${ANALYZER_SDK_ROOT}/lib/Analyzer.lib)
-    endif()
-elseif(UNIX AND NOT APPLE)
- 	target_link_libraries(AsyncRgbLedAnalyzer ${ANALYZER_SDK_ROOT}/lib/libAnalyzer.so)
-endif()
-
-target_include_directories(AsyncRgbLedAnalyzer PRIVATE ${ANALYZER_SDK_ROOT}/include)
+target_link_libraries(AsyncRgbLedAnalyzer PRIVATE Saleae::AnalyzerSDK)
 
 # TODO - define installation dir
 #install(TARGETS AsyncRgbLedAnalyzer RUNTIME DESTINATION ${ANALYZER_PLUGIN_DIR})
@@ -62,6 +49,6 @@ target_link_libraries(AsyncRgbLedTest AnalyzerTestHarness)
 add_test(AsyncRgbLedTest ${EXECUTABLE_OUTPUT_PATH}/AsyncRgbLedTest)
 
 #------------------------------------------------------------------------
-# AStyle 
+# AStyle
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 include( ExternalAStyle )
