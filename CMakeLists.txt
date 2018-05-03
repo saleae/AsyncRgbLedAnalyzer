@@ -8,6 +8,10 @@ set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
 
 project(AsyncRgbLedAnalyzer)
 
+if(WIN32)
+  add_definitions(-DNOMINMAX)
+endif()
+
 include (Dart)
 enable_testing()
 
