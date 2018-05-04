@@ -1,10 +1,10 @@
-cmake_minimum_required (VERSION 3.0)
+cmake_minimum_required (VERSION 3.11)
 
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED YES)
 
 # custom CMake Modules are located in the cmake directory.
-set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake" "${CMAKE_SOURCE_DIR}/AnalyzerSDK")
+set(CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake)
 
 project(AsyncRgbLedAnalyzer)
 
@@ -17,7 +17,9 @@ enable_testing()
 
 option(ENABLE_ASTYLE  "Set to ON to enable AStyle formating of the code" ON)
 
-include(AnalyzerSDKConfig)
+include(ExternalAnalyzerSDK)
+
+prepare_analyzer_sdk()
 
 
 set(SOURCES source/AsyncRgbLedAnalyzer.cpp
