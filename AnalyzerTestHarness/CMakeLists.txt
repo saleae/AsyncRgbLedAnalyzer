@@ -12,7 +12,7 @@ set(TEST_HARNESS_SOURCES
     MockResults.h
     MockResults.cpp
     MockSettings.h
-    SettingsStubs.cpp 
+    SettingsStubs.cpp
     StreamHelpers.h
     StreamHelpers.cpp
     TestAnalyzerData.h
@@ -24,7 +24,7 @@ set(TEST_HARNESS_SOURCES
 add_library(AnalyzerTestHarness STATIC ${TEST_HARNESS_SOURCES})
 
 target_include_directories(AnalyzerTestHarness PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-target_include_directories(AnalyzerTestHarness PUBLIC ${ANALYZER_SDK_ROOT}/include)
+target_link_libraries(AnalyzerTestHarness PUBLIC Saleae::AnalyzerSDK)
 
 #------------------------------------------------------------------------
 # internal verification of the test-harness

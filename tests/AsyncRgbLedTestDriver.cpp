@@ -6,6 +6,7 @@
 #include "MockSimulatedChannelDescriptor.h"
 #include "TestMacros.h"
 
+#include <algorithm>
 #include <cmath>
 #include <cassert>
 #include <exception>
@@ -106,7 +107,7 @@ public:
               range = (t.max - t.min) * mTolerance;
 
         // we want to offset by a random amount of the range
-        double offsetRandom = drand48() - 0.5; // random is now -0.5 .. 0.5
+        double offsetRandom = rand() - 0.5; // random is now -0.5 .. 0.5
         const double p = actualMean + (offsetRandom * range);
         assert(p >= t.min);
         assert(p <= t.max);
