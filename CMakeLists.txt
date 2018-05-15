@@ -50,7 +50,7 @@ target_include_directories(AsyncRgbLedAnalyzer PRIVATE ${ANALYZER_SDK_ROOT}/incl
 #------------------------------------------------------------------------
 # Testing
 
-add_subdirectory(AnalyzerTestHarness)
+add_subdirectory(AnalyzerSDK/testlib)
 
 add_executable(AsyncRgbLedTest tests/AsyncRgbLedTestDriver.cpp ${SOURCES})
 target_link_libraries(AsyncRgbLedTest AnalyzerTestHarness)
