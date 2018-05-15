@@ -226,6 +226,11 @@ public:
             }
         } // of token parsing loop
     }
+
+    void ResetToStart()
+    {
+        mChannelData->ResetCurrentSample();
+    }
 private:
     const U8 mChannelBitSize = 8;
     U8 mModeIndex = 0; // 0 - normal speed, 1 = hi-speed if available
@@ -328,6 +333,7 @@ void testBasicAnalysis(const std::string& controller,
                                  "#abbade,#223344,#667788,#cfcfcf,#deadbe,#7f7f7f_reset,"
                                  "#aaddcc,#223344,#667788,#998877,#eeddff,#123456_reset"
                                  );
+    generator->ResetToStart();
 
   //  channelData.DumpTestData(pluginInstance.GetSampleRate());
 
@@ -423,7 +429,7 @@ void testSynchronizeMidData(const std::string& controller,
                                  "#ddeeff,#112233,#223344,#445566,#556677,#987654_reset"
                                  );
 
-
+    generator->ResetToStart();
     // advance part-way through the first packet, so the analyzer has to sync
     // to the next reset pulse. At 48 transitions per 8-bit RGB frame,
     // let's advance three frames into the first packet so it's defintiely
@@ -476,6 +482,7 @@ void testResynchronizeAfterBadData(const std::string& controller,
                                  "#ddeeff,#112233,#223344,#445566,#556677,#987654_reset"
                                  );
 
+    generator->ResetToStart();
     pluginInstance.SetChannelData(TEST_CHANNEL, &channelData);
     auto rr= pluginInstance.RunAnalyzerWorker();
     // ensure we consumed all the data
