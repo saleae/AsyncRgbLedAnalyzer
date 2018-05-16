@@ -19,6 +19,10 @@ option(ENABLE_ASTYLE  "Set to ON to enable AStyle formating of the code" ON)
 
 include(ExternalAnalyzerSDK)
 
+
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/bin/)
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/bin/)
+
 prepare_analyzer_sdk()
 
 
@@ -48,7 +52,7 @@ add_subdirectory(AnalyzerTestHarness)
 add_executable(AsyncRgbLedTest tests/AsyncRgbLedTestDriver.cpp ${SOURCES})
 target_link_libraries(AsyncRgbLedTest AnalyzerTestHarness)
 
-add_test(AsyncRgbLedTest ${EXECUTABLE_OUTPUT_PATH}/AsyncRgbLedTest)
+add_test(NAME AsyncRgbLedTest COMMAND AsyncRgbLedTest)
 
 #------------------------------------------------------------------------
 # AStyle

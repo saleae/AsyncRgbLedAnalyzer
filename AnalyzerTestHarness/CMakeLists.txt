@@ -32,4 +32,4 @@ target_link_libraries(AnalyzerTestHarness PUBLIC Saleae::AnalyzerSDK)
 add_executable(TestHarnessVerification TestHarnessVerification.cpp TrivialAnalyzer.cpp)
 target_link_libraries(TestHarnessVerification AnalyzerTestHarness)
 
-add_test(TestHarnessVerification ${EXECUTABLE_OUTPUT_PATH}/TestHarnessVerification)
+add_test(NAME TestHarnessVerification COMMAND TestHarnessVerification)
