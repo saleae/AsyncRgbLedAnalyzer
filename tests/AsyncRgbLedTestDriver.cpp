@@ -22,6 +22,13 @@ double operator "" _us( unsigned long long x )
     return x * 1e-6;
 }
 
+/// return a random value in the range -0.5 .. 0.5
+double offsetRandom()
+{
+    double normRand = rand() / static_cast<double>(RAND_MAX);
+    return normRand - 0.5;
+}
+
 } // of anonymous namespace
 
 const Channel TEST_CHANNEL = Channel(0, 0, DIGITAL_CHANNEL);
@@ -107,8 +114,7 @@ public:
               range = (t.max - t.min) * mTolerance;
 
         // we want to offset by a random amount of the range
-        double offsetRandom = drand48() - 0.5; // random is now -0.5 .. 0.5
-        const double p = actualMean + (offsetRandom * range);
+        const double p = actualMean + (offsetRandom() * range);
         assert(p >= t.min);
         assert(p <= t.max);
 
