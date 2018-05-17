@@ -9,6 +9,7 @@
 #include <cmath>
 #include <cassert>
 #include <exception>
+#include <algorithm>
 
 namespace {
 
